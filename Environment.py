@@ -4,21 +4,22 @@ from Agent import Agent
 
 class Env:
 
-    def __init__(self, env_size, n_agents,neighborhood_radius, CONNECTED=False) -> None:
+    def __init__(self, env_size,shape, n_agents,neighborhood_radius, CONNECTED=False) -> None:
 
         self.env_size = env_size
         self.n_radius = neighborhood_radius
+        self.shape = shape
 
 
         if CONNECTED:
             initial_positions = self.connected_pos_gen(n_agents, neighborhood_radius)
-            self.agents = [{'agent':Agent(), 
+            self.agents = [{'agent':Agent(self.shape,i), 
                             'pos':pos} 
-                            for pos in initial_positions]
+                            for i, pos in enumerate(initial_positions)]
 
         else:
             
-            self.agents = [{'agent':Agent(), 
+            self.agents = [{'agent':Agent(self.shape, agent), 
                             'pos':(np.random.random((1,2))-0.5)*2*self.env_size} 
                             for agent in range(n_agents)]
 
@@ -28,38 +29,46 @@ class Env:
         # Perform all actions simultaneously (although they are computed separately)
         # ASSUMPTION: Agents operate synchronously
         
+        # Exchange_messages and scan neighborhood
 
-        # Gather Actions
+        for agent in self.agents:
+            # Get neighborhood and broadcast
 
-        tstep_actions = []
+            n,b=self.get_local_info(agent['pos'])
+
+            agent['agent'].get_broadcast(n,b)
+        
+        # Move
 
         for agent in self.agents:
 
-            n = self.get_neighborhood(agent['pos'])
-            v = agent['agent'].move(n)
-            tstep_actions.append(v)
+            v = agent['agent'].move()
+            agent['pos'] += v
         
 
-        # Perform actions
-        for i, action in enumerate(tstep_actions):
-            self.agents[i]['pos'] += action
-
         
-            
-
-    def get_neighborhood(self, pos):
+        
+        
+    def get_local_info(self, pos):
 
         # Remove self from list
         positions = self.make_positions_list()
-        positions = positions[np.all(positions!=pos, axis=1)]
-        
+        mask1 = np.all(positions!=pos, axis=1)
+        positions = positions[mask1]
         # Compute norm on relative position vectors
         relative_positions = positions - pos
         norm = np.linalg.norm(relative_positions, axis=1)
 
-        # Neighborhood
-        neighborhood = relative_positions[norm <= self.n_radius]
-        return neighborhood
+        mask2 = norm <= self.n_radius
+
+        # Neighborhood positions
+        neighborhood = relative_positions[mask2]
+
+        # Neighborhood broadcasts
+        broadcast = [b for a, b in zip(mask1, self.get_broadcasts()) if a]
+        broadcast = [b for a, b in zip(mask2, broadcast) if a]
+
+        return neighborhood, broadcast
 
 
     def make_positions_list(self):
@@ -70,6 +79,13 @@ class Env:
         
         return np.squeeze(np.array(positions))
     
+
+    def get_broadcasts(self):
+
+        broadcasts = [agent['agent'].send_broadcast() for agent in self.agents]
+
+        return broadcasts
+
 
     def connected_pos_gen(self, n_agents, r, CENTERED=True):
         

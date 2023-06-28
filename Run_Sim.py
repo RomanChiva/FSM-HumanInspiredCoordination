@@ -47,6 +47,8 @@ def run_sim(env):
         # Plot Scatter
         ax1.scatter(positions.T[0], positions.T[1], c='black')
         ax1.scatter(positions.T[0], positions.T[1], s=150, c='red', alpha=0.3)
+        for agent in env.agents:
+            ax1.annotate(agent['agent'].ID, (agent['pos'][0], agent['pos'][1]))
 
     ani = animation.FuncAnimation(fig, update, interval = 100)
     plt.show()
