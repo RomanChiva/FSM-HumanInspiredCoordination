@@ -36,7 +36,7 @@ class Agent:
         self.step_size = (self.random_heading - self.current_heading)/self.rand_motion_duration
 
     def move(self):
-
+        # Comment
         
 
         if self.state == 'Random_Tour':
