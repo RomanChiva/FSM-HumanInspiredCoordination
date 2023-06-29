@@ -17,13 +17,14 @@ def run_sim(env):
     # Create plot inside figure
     ax1 = fig.add_subplot(1,1,1)
     
+    colors_index = {'Root':'blue', 'In_Place':'green', 'Random_Tour':'red'}
 
     def update(i):
 
         env.timestep()
 
         positions = env.make_positions_list()
-
+        colors = [colors_index[agent['agent'].state] for agent in env.agents]
         ax1.clear()
 
         # Set Axis Limits
@@ -33,8 +34,8 @@ def run_sim(env):
         # Set Ticks and Make Grid
 
         # Major ticks every 10, minor ticks every 5
-        major_ticks = np.arange(-env.env_size, env.env_size, 20)
-        minor_ticks = np.arange(-env.env_size, env.env_size, 10)
+        major_ticks = np.arange(-env.env_size, env.env_size,20)
+        minor_ticks = np.arange(-env.env_size, env.env_size,10)
 
         ax1.set_xticks(major_ticks)
         ax1.set_xticks(minor_ticks, minor=True)
@@ -45,8 +46,8 @@ def run_sim(env):
         ax1.grid(which='both')
 
         # Plot Scatter
-        ax1.scatter(positions.T[0], positions.T[1], c='black')
-        ax1.scatter(positions.T[0], positions.T[1], s=150, c='red', alpha=0.3)
+        ax1.scatter(positions.T[0], positions.T[1], c=colors)
+        #ax1.scatter(positions.T[0], positions.T[1], s=150, c='red', alpha=0.3)
         for agent in env.agents:
             ax1.annotate(agent['agent'].ID, (agent['pos'][0], agent['pos'][1]))
 

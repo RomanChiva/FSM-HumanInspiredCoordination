@@ -45,5 +45,25 @@ def show_graph(shape,graph):
     plt.show()
 
             
+## Connected position generation
 
+def connected_pos_gen(env_size, n_agents, r, CENTERED=True):
+        
+    if CENTERED:
+        pos_list = np.array([np.array([0,0])])
+    else:
+        pos_list = (np.random.random((1,2))-0.5)*2*env_size
+
+    while pos_list.shape[0] < n_agents:
+
+        new_random_point = (np.random.random((1,2))-0.5)*2*env_size
+
+        relative_distances = pos_list - new_random_point
+        distances = np.linalg.norm(relative_distances, axis=1)
+
+        if np.any(distances <= r):
+            
+            pos_list = np.concatenate((pos_list,new_random_point), axis=0)
+    
+    return pos_list
 

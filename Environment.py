@@ -1,6 +1,6 @@
 import numpy as np
 from Agent import Agent
-
+from utils import connected_pos_gen
 
 class Env:
 
@@ -12,7 +12,7 @@ class Env:
 
 
         if CONNECTED:
-            initial_positions = self.connected_pos_gen(n_agents, neighborhood_radius)
+            initial_positions = connected_pos_gen(self.env_size,n_agents, neighborhood_radius)
             self.agents = [{'agent':Agent(self.shape,i), 
                             'pos':pos} 
                             for i, pos in enumerate(initial_positions)]
@@ -87,22 +87,4 @@ class Env:
         return broadcasts
 
 
-    def connected_pos_gen(self, n_agents, r, CENTERED=True):
-        
-        if CENTERED:
-            pos_list = np.array([np.array([0,0])])
-        else:
-            pos_list = (np.random.random((1,2))-0.5)*2*self.env_size
-
-        while pos_list.shape[0] < n_agents:
-
-            new_random_point = (np.random.random((1,2))-0.5)*2*self.env_size
-
-            relative_distances = pos_list - new_random_point
-            distances = np.linalg.norm(relative_distances, axis=1)
-
-            if np.any(distances <= r):
-                
-                pos_list = np.concatenate((pos_list,new_random_point), axis=0)
-        
-        return pos_list
+    
