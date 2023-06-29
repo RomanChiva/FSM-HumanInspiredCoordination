@@ -1,7 +1,7 @@
 import numpy as np
 import random
 from utils import make_graph
-
+np.random.seed(123)
 class Agent:
 
     def __init__(self, shape, ID) -> None:
@@ -23,12 +23,13 @@ class Agent:
         self.neighborhood = None
 
         # Transition probabilities
-        self.p_root = 0.05
+        self.p_root = 0.01
         self.p_accept = 0.05
-        self.p_give_up = 0.02
-        self.p_give_up_root = 0.01
+        self.p_give_up = 0.01
+        self.p_give_up_root = 0.1
 
         # States for random tour
+        self.rm_v = 2
         self.rand_motion_duration = 10
         self.random_heading = (random.random()-0.5)*np.pi*2
         self.current_heading = (random.random()-0.5)*np.pi*2
@@ -46,8 +47,6 @@ class Agent:
             v = self.root()
         
 
-        print('Recap:',self.ID)
-        print(self.state, self.index,self.parent,self.child1)
         return v
     
 
@@ -83,7 +82,7 @@ class Agent:
 
         v = np.array([np.cos(self.current_heading), np.sin(self.current_heading)])
 
-        return v
+        return v*self.rm_v
     
 
     def in_place(self):
@@ -92,7 +91,7 @@ class Agent:
         parent_relative_pos = self.parent[1]  
         from_parent_to_target = (self.shape[self.index] - self.shape[self.parent[0]])
         resultant = parent_relative_pos-from_parent_to_target
-        return resultant*0.2
+        return resultant*0.1
 
 
     def root(self):
@@ -107,9 +106,9 @@ class Agent:
         if self.state == 'Root':
             return [self.index, self.child1,self.index,self.child2]
         elif self.state == 'In_Place':
-
             if self.child1 == None:
-                return None
+                # Signal virtual agent -1 is already occupyiong this place
+                return [self.index,[-1,True]]
             else:
                 return [self.index, self.child1]
         else:

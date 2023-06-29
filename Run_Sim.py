@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 
 
 
-
+np.random.seed(123)
 
 def run_sim(env):
 
