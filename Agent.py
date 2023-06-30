@@ -1,6 +1,6 @@
 import numpy as np
 import random
-from utils import make_graph
+from utils import create_adjacency_matrix
 np.random.seed(123)
 class Agent:
 
@@ -9,7 +9,7 @@ class Agent:
         # Global
         self.ID = ID # Only for Visualization and Debug
         self.shape = shape
-        self.graph = make_graph(self.shape)
+        self.graph = create_adjacency_matrix(self.shape.shape[0])
 
         # Shape Related
         self.parent = None #[Index, Pos]

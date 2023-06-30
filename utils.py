@@ -44,6 +44,22 @@ def show_graph(shape,graph):
             plt.plot(x,y)
     plt.show()
 
+
+def create_adjacency_matrix(num_points):
+    # Create an identity matrix
+    adjacency_matrix = np.eye(num_points)
+
+    # Set zeros in adjacent diagonals
+    adjacency_matrix += np.diag(np.ones(num_points - 1), k=1)
+    adjacency_matrix += np.diag(np.ones(num_points - 1), k=-1)
+
+    adjacency_matrix = adjacency_matrix - np.eye(num_points)
+    adjacency_matrix[0,num_points-1] = 1
+    adjacency_matrix[num_points-1,0] = 1
+
+    return adjacency_matrix
+
+
             
 ## Connected position generation
 
