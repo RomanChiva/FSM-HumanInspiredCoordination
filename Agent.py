@@ -1,7 +1,10 @@
 import numpy as np
 import random
 from utils import create_adjacency_matrix
-np.random.seed(123)
+from scipy.sparse.csgraph import shortest_path
+from message import message
+import smallestenclosingcircle
+
 class Agent:
 
     def __init__(self, shape, ID) -> None:
@@ -10,13 +13,18 @@ class Agent:
         self.ID = ID # Only for Visualization and Debug
         self.shape = shape
         self.graph = create_adjacency_matrix(self.shape.shape[0])
+        self.shortest_paths = shortest_path(self.graph, directed=False)
 
         # Shape Related
-        self.parent = None #[Index, Pos]
+        self.root_index = None
+        self.parent_index = None 
+        self.parent_position = None
         self.index = None
-        self.child1 = None # [Index, Bool]
+        self.child1_index = None # [Index, Bool]
+        self.child1_there = False
         # Only Relevant when you are Root, otherwise remains None
-        self.child2 = None
+        self.child2_index = None
+        self.child2_there = False
 
         # Current State
         self.state = 'Random_Tour'
@@ -28,17 +36,17 @@ class Agent:
         self.p_give_up = 0.01
         self.p_give_up_root = 0.1
 
-        # States for random tour
+        # Variables for random tour
         self.rm_v = 2
         self.rand_motion_duration = 10
         self.random_heading = (random.random()-0.5)*np.pi*2
         self.current_heading = (random.random()-0.5)*np.pi*2
         self.step_size = (self.random_heading - self.current_heading)/self.rand_motion_duration
 
+
     def move(self):
         # Comment
         
-
         if self.state == 'Random_Tour':
             v = self.random_tour()
         elif self.state == 'In_Place':
@@ -52,7 +60,6 @@ class Agent:
 
     def RendezVous(self, neighborhood):
         
-        import smallestenclosingcircle
 
         cx,cy,r = smallestenclosingcircle.make_circle(neighborhood)
 
@@ -69,7 +76,7 @@ class Agent:
     
     def random_tour(self):
 
-        # Switch Heading roughly every 50 timesteps
+        # Switch Heading rough[self.index, self.child1,self.index,self.child2]ly every 50 timesteps
         rand = random.random()
 
         if rand <= 1/self.rand_motion_duration:
@@ -87,10 +94,8 @@ class Agent:
 
     def in_place(self):
         # Identify target using graph indices and parent's position
-        # target = parent relative position + (self_place_in_shape  - parent_place_in_shape)
-        parent_relative_pos = self.parent[1]  
-        from_parent_to_target = (self.shape[self.index] - self.shape[self.parent[0]])
-        resultant = parent_relative_pos-from_parent_to_target
+        from_parent_to_target = (self.shape[self.index] - self.shape[self.parent_index])
+        resultant = self.parent_position+from_parent_to_target
         return resultant*0.1
 
 
@@ -102,20 +107,31 @@ class Agent:
 
 
     def send_broadcast(self):
-        # Info contained in broadcasted message depending on state
+
         if self.state == 'Root':
-            return [self.index, self.child1,self.index,self.child2]
-        elif self.state == 'In_Place':
-            if self.child1 == None:
-                # Signal virtual agent -1 is already occupyiong this place
-                return [self.index,[-1,True]]
-            else:
-                return [self.index, self.child1]
+            return [message(self.root_index,
+                       self.index, 
+                       self.child1_index, 
+                       self.child1_there, 
+                       ), 
+                       message(self.root_index,
+                       self.index, 
+                       self.child2_index, 
+                       self.child2_there, 
+                       )]
         else:
-            return None
+            # Share you knowledge on the shape so far
+            return [message(self.root_index,
+                        self.index, 
+                        self.child1_index, 
+                        self.child1_there, 
+                        )]
+     
                 
     
     def get_broadcast(self, n, b):
+
+        n,b = self.process_broadcast(n,b)
         
         if self.state == 'Random_Tour':
             self.random_tour_listen(n,b)
@@ -133,28 +149,22 @@ class Agent:
         
     def shape_unsuccessful_check(self):
 
+        rand = random.random()
+
         # Condition for breaking out of formation as child of root
-        if self.state == 'In_Place' and self.child1:
-            if not self.child1[1]:
-                rand = random.random()
-                if rand < self.p_give_up:
+        if self.state == 'In_Place':
+            if not self.child1_there:
+                if rand < self.probability_decay(self.index):
                     self.state = 'Random_Tour'
+                    self.reset()
 
         # Condition for giving up as root
         elif self.state == 'Root':
 
-            if self.child2 is not None:
-                if not self.child1[1] and not self.child2[1]:
-                    rand = random.random()
-                    if rand < self.p_give_up_root*2:
-                        self.state = 'Random_Tour'
-
-            else:
-                if not self.child1[1]:
-                    rand = random.random()
-                    if rand < self.p_give_up:
-                        self.state = 'Random_Tour'
-
+            if not self.child1_there and not self.child2_there:
+                if rand < self.p_give_up_root*2:
+                    self.state = 'Random_Tour'
+                    self.reset()
 
 
 
@@ -164,55 +174,44 @@ class Agent:
 
         # Store Neighborhood
         self.neighborhood = N
-
-        n,b = self.format_raw_broadcast(N,B)
-        
-        # ===========
-        # TRANSITIONS
-        # ===========
         rand = random.random()
-
-        # === ROOT ===========
-        if len(b) == 0:
+        fragments_in_neighborhood = [1 for message in B if message.self_index != None]
+        # === Become Root only if you receive no broadcasts ROOT ===========
+        if len(fragments_in_neighborhood) == 0:
             if rand < self.p_root:
-                
-                # Pick Root Vertex/random select
+                # Pick RootVertex/random select
                 self.index = random.randint(0,self.shape.shape[0]-1)
+                self.root_index = self.index
                 # Identify Children
                 children = np.argwhere(self.graph[self.index] > 0)
-                
-                self.child1 = [children[0][0],False]
-                if children.shape[0] >1:
-                    self.child2 = [children[1][0],False]
-               
+                self.child1_index = children[0][0]
+                self.child1_there = False
+                self.child2_index = children[1][0]
+                self.child2_there = False
+                # Set state to root
                 self.state = 'Root'
 
 
         #===== JOIN SHAPE ======
-
-        self.offers = []
-        for i,message in enumerate(b):
-            if not message[1][1]:
-                self.offers.append(i)
-
+        # Find available offers
+        available_spots = [i for i, message in enumerate(B) if not message.child1_there and message.self_index != None]
         # If there are no available offers len(offers) = 0 , thus probability you join is 0
-        if rand < self.p_accept*len(self.offers):
+        
+        if rand < self.p_accept*len(available_spots):
 
             # Find Parent: Pick an offer
-            j = random.choice(self.offers)
-            self.index = b[j][1][0] # Identify your own index in the graph
-            
+            j = random.choice(available_spots)
+            self.root_index = B[j].root_index
+            self.index = B[j].child1_index # Identify your own index in the graph
             # Read parents info from the offer and its relative position in the neighborhood
-            self.parent = [b[j][0],n[j]]
-            
+            self.parent_index = B[j].self_index
+            self.parent_position = N[j]
             # Figure out child
             connections = np.argwhere(self.graph[self.index] > 0).T[0] # Check connections
-            if connections.shape[0] <2:
-                self.child1 = None
-            else:
-                child_index = connections[connections != self.parent[0]][0]
-                self.child1 = [child_index, False]
-            
+            mask = connections != self.parent_index
+            self.child1_index = int(connections[mask])
+            self.child1_there = False
+            # Set State to InPlace
             self.state = 'In_Place'
 
 
@@ -222,20 +221,20 @@ class Agent:
         
         # Store Neighborhood
         self.neighborhood = N 
-
-        n,b = self.format_raw_broadcast(N,B)
-        if self.child1 != None:
-            self.child1[1] = False
-        for i,message in enumerate(b):
-            if message[0] == self.parent[0]:
-                self.parent[1] = n[i]
-            # Check for yourself:
-            elif message[0] == self.index: #and random.random() < 0.5:
+        # Assume your kid worn be there
+        self.child1_there = False
+        # Iterate over all messages
+        for i,message in enumerate(B):
+            # Update your parent's position
+            if message.self_index == self.parent_index:
+                self.parent_position = N[i]
+            # Check for yourself: If you find someone with the same index you might have toi give up your index
+            elif message.self_index == self.index: #and random.random() < 0.5:
+                self.reset()
                 self.state = 'Random_Tour'
-            # Check if if you have children
-            if self.child1 != None:
-                if message[0] == self.child1[0]:
-                    self.child1[1] = True
+            # Check if if your children are there
+            elif message.self_index == self.child1_index:
+                    self.child1_there = True
 
             
 
@@ -244,41 +243,57 @@ class Agent:
         # Store Neighborhood
         self.neighborhood = N
 
-        n,b = self.format_raw_broadcast(N,B)
-
-        self.child1[1] = False
-        for message in b:
-            if message[0] == self.child1[0]:
-                self.child1[1] = True
-
-        if self.child2 is not None:
-            self.child2[1] = False
-            for message in b:
-                if message[0] == self.child2[0]:
-                    self.child2[1] = True
+        self.child1_there = False
+        self.child2_there = False
+        for message in B:
+            if message.self_index == self.child1_index:
+                self.child1_there = True
+            elif message.self_index == self.child2_index:
+                self.child2_there = True
 
 
-    def format_raw_broadcast(self, N,B):
 
-        
-        
-        b = []
+    def reset(self):
+        self.root_index = None
+        self.parent_index = None 
+        self.parent_position = None
+        self.index = None
+        self.child1_index = None
+        self.child1_there = False
+        self.child2_index = None
+        self.child2_there = False
+
+
+    def process_broadcast(self, N,B):
+
         n = []
+        b = []
 
         for i, message in enumerate(B):
-            if message is not None:
-                if len(message) > 2:
-                    b.append(message[:2])
-                    n.append(N[i])
-                    if message[3] is not None:
-                        b.append(message[2:])
-                        n.append(N[i])
-                else:
-                    b.append(message)
-                    n.append(N[i])
+            if len(message) == 1:
+                n.append(N[i])
+                b.append(message[0])
+            if len(message) == 2:
+                n.append(N[i])
+                n.append(N[i])
+                b.append(message[0])
+                b.append(message[1])
+        return np.array(n), b
+    
+    def find_available_spots(self, B):
 
-        return np.array(n),b
+        offers = []
 
+        for i, message in enumerate(B):
+            if self.index != None and not self.child1_there:
+                offers.append(i)
+
+        return offers
+
+    def probability_decay(self, index):
+        
+        return self.p_give_up# - self.shortest_paths[self.root_index,index]*(self.p_give_up/int(np.max(self.shortest_paths)))
+    
 
 
         

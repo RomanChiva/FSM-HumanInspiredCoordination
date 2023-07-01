@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
-
+from scipy.sparse.csgraph import shortest_path
 
 
 # Funcs to turn point cloud into a graph
@@ -59,7 +59,14 @@ def create_adjacency_matrix(num_points):
 
     return adjacency_matrix
 
+def distance_between_vertices(v1, v2, adjacency_matrix):
+    # Calculate the shortest path lengths between all pairs of vertices
+    shortest_distances = shortest_path(adjacency_matrix, directed=False)
 
+    # Retrieve the distance between the two vertices
+    distance = shortest_distances[v1, v2]
+
+    return distance
             
 ## Connected position generation
 

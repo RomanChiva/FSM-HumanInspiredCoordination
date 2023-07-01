@@ -47,7 +47,11 @@ def run_sim(env):
 
         # Plot Scatter
         ax1.scatter(positions.T[0], positions.T[1], c=colors)
-        #ax1.scatter(positions.T[0], positions.T[1], s=150, c='red', alpha=0.3)
+        # for agent in env.agents:
+        #     if type(agent['agent'].parent_position) == type(np.array([1,2])):
+        #         pos = agent['pos']
+        #         parent = agent['pos'] + agent['agent'].parent_position
+        #         plt.plot(pos, parent)
         for agent in env.agents:
             ax1.annotate(agent['agent'].ID, (agent['pos'][0], agent['pos'][1]))
 
