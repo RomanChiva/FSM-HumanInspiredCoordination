@@ -37,7 +37,7 @@ class Agent:
         self.p_give_up_root = 0.1
 
         # Variables for random tour
-        self.rm_v = 2
+        self.rm_v = 3
         self.rand_motion_duration = 10
         self.random_heading = (random.random()-0.5)*np.pi*2
         self.current_heading = (random.random()-0.5)*np.pi*2
