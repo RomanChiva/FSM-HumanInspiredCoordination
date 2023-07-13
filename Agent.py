@@ -4,6 +4,8 @@ from utils import create_adjacency_matrix
 from scipy.sparse.csgraph import shortest_path
 from message import message
 import smallestenclosingcircle
+from Potential import RadialBasisFunction
+
 
 class Agent:
 
@@ -36,13 +38,12 @@ class Agent:
         self.p_give_up = 0.01
         self.p_give_up_root = 0.1
 
-        # Variables for random tour
-        self.rm_v = 3
-        self.rand_motion_duration = 10
-        self.random_heading = (random.random()-0.5)*np.pi*2
-        self.current_heading = (random.random()-0.5)*np.pi*2
-        self.step_size = (self.random_heading - self.current_heading)/self.rand_motion_duration
-
+        # Init Variables for random tour
+        self.target_count = 0
+        self.RBF_center = np.array([0,0], dtype=float)
+        self.relative_to_target = np.array([0,0],dtype=float)
+        self.RBF = RadialBasisFunction(self.RBF_center,1)
+       
 
     def move(self):
         # Comment
@@ -76,20 +77,30 @@ class Agent:
     
     def random_tour(self):
 
-        # Switch Heading rough[self.index, self.child1,self.index,self.child2]ly every 50 timesteps
-        rand = random.random()
+        current_value = self.RBF.evaluate(self.relative_to_target)
+        # Check if you have to generate a new RBF
+        if current_value > 0.9:
+            self.target_count += 1
+            # Generate random vector and set it relative to origin
+            rbf_width = self.target_count*10
+            rand = (np.random.rand(1,2)*2-1)*rbf_width
+            self.RBF_center = rand -self.relative_to_target
+            # Define the new RBF
+            self.RBF = RadialBasisFunction(self.RBF_center,rbf_width)
+           
+            
+        # Use gradient to get a velocity_vector 
+        grad = self.RBF.gradient(self.relative_to_target)
+        # Velocity Range (1 to 10) (Assumin g gradient vector magnitudes range from 0 to 0.15 approximtely)
+        v = -grad[0]*(1/np.linalg.norm(grad[0]) + 60)
+        self.relative_to_target += v
 
-        if rand <= 1/self.rand_motion_duration:
-            # Update new step size and rnadom motion duration
-            self.random_heading = (random.random()-0.5)*np.pi*2
-            self.step_size = (self.random_heading - self.current_heading)/self.rand_motion_duration
+        return v
+
+
         
-        # Update current heading
-        self.current_heading += self.step_size
 
-        v = np.array([np.cos(self.current_heading), np.sin(self.current_heading)])
-
-        return v*self.rm_v
+        return 
     
 
     def in_place(self):
@@ -262,6 +273,11 @@ class Agent:
         self.child1_there = False
         self.child2_index = None
         self.child2_there = False
+        # Init Variables for random tour
+        self.target_count = 0
+        self.RBF_center = np.array([0,0], dtype=float)
+        self.relative_to_target = np.array([0,0],dtype=float)
+        self.RBF = RadialBasisFunction(self.RBF_center,1)
 
 
     def process_broadcast(self, N,B):
