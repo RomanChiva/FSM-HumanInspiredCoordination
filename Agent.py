@@ -1,6 +1,6 @@
 import numpy as np
 import random
-
+from Potential import RadialBasisFunction
 
 class Agent:
 
@@ -15,13 +15,11 @@ class Agent:
         # Transition variables 
         self.curr_n_size = 0
 
-        self.RV_RT = 0.0025
-
-        # States for random tour
-        self.rand_motion_duration = 10
-        self.random_heading = (random.random()-0.5)*np.pi*2
-        self.current_heading = (random.random()-0.5)*np.pi*2
-        self.step_size = (self.random_heading - self.current_heading)/self.rand_motion_duration
+        # Random Tour States
+        self.target_count = 0
+        self.RBF_center = np.array([0,0], dtype=float)
+        self.relative_to_target = np.array([0,0],dtype=float)
+        self.RBF = RadialBasisFunction(self.RBF_center,1)
 
     def move(self, neighborhood):
 
@@ -54,26 +52,29 @@ class Agent:
         return v
     
     def random_tour(self, neighborhood):
-
-        if self.curr_n_size < neighborhood.shape[0]:
-            self.curr_n_size = neighborhood.shape[0]
-            self.state = 'RendezVous'
-
-        self.curr_n_size = neighborhood.shape[0]
-        # Switch Heading roughly every 50 timesteps
-        rand = random.random()
-
-        if rand <= 1/self.rand_motion_duration:
-            # Update new step size and rnadom motion duration
-            self.random_heading = (random.random()-0.5)*np.pi*2
-            self.step_size = (self.random_heading - self.current_heading)/self.rand_motion_duration
-        
-        # Update current heading
-        self.current_heading += self.step_size
-
-        v = np.array([np.cos(self.current_heading), np.sin(self.current_heading)])
+      
+        current_value = self.RBF.evaluate(self.relative_to_target)
+        print(current_value)
+        # Check if you have to generate a new RBF
+        if current_value > 0.9:
+            self.target_count += 1
+            # Generate random vector and set it relative to origin
+            rbf_width = self.target_count*10
+            rand = (np.random.rand(1,2)*2-1)*rbf_width
+            self.RBF_center = rand -self.relative_to_target
+            # Define the new RBF
+            self.RBF = RadialBasisFunction(self.RBF_center,rbf_width)
+            print('NewRBF')
+            
+        # Use gradient to get a velocity_vector 
+        grad = self.RBF.gradient(self.relative_to_target)
+        # Velocity Range (1 to 10) (Assumin g gradient vector magnitudes range from 0 to 0.15 approximtely)
+        v = -grad[0]*(1/np.linalg.norm(grad[0]) + 60)
+        print(v)
+        self.relative_to_target += v
 
         return v
+    
 
 
         
