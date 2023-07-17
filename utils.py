@@ -24,6 +24,16 @@ def make_undirected(AM):
     return symm
 
 
+def circle_maker(n_agents, radius):
+
+    root = np.linspace(0,2*np.pi, n_agents+1)
+    x = np.sin(root)*radius
+    y = np.cos(root)*radius
+
+    resultant = np.array([x,y]).T
+    return resultant[:-1]
+
+
 def make_graph(shape):
     fully_connected = sp.spatial.distance_matrix(shape, shape)
     mst = sp.sparse.csgraph.minimum_spanning_tree(fully_connected)

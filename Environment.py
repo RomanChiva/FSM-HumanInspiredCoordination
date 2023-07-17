@@ -20,7 +20,7 @@ class Env:
         else:
             
             self.agents = [{'agent':Agent(self.shape, agent), 
-                            'pos':(np.random.random((1,2))-0.5)*2*self.env_size} 
+                            'pos':(np.random.random((1,2))[0]-0.5)*2*self.env_size} 
                             for agent in range(n_agents)]
 
 
