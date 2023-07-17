@@ -2,7 +2,8 @@ import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
 from scipy.sparse.csgraph import shortest_path
-
+import random
+import string
 
 # Funcs to turn point cloud into a graph
 
@@ -100,3 +101,13 @@ def connected_pos_gen(env_size, n_agents, r, CENTERED=True):
     
     return pos_list
 
+
+def generate_random_string(length):
+    letters = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(random.choice(letters) for _ in range(length))
+
+
+
+def custom_sigmoid(p0,sharpness,centroid,x):
+
+    return p0*(1-(1/(1+np.exp(-sharpness*(x-centroid)))))

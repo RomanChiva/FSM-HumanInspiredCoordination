@@ -1,6 +1,6 @@
 import numpy as np
 import random
-from utils import create_adjacency_matrix
+from utils import create_adjacency_matrix, generate_random_string, custom_sigmoid, distance_between_vertices
 from scipy.sparse.csgraph import shortest_path
 from message import message
 import smallestenclosingcircle
@@ -15,13 +15,15 @@ class Agent:
         self.ID = ID # Only for Visualization and Debug
         self.shape = shape
         self.graph = create_adjacency_matrix(self.shape.shape[0])
-        self.shortest_paths = shortest_path(self.graph, directed=False)
+        
 
         # Shape Related
+        self.shape_ID = None
         self.root_index = None
         self.parent_index = None 
         self.parent_position = None
         self.index = None
+        self.distance_to_root = None
         self.child1_index = None # [Index, Bool]
         self.child1_there = False
         # Only Relevant when you are Root, otherwise remains None
@@ -34,10 +36,10 @@ class Agent:
 
         # Transition probabilities
         self.p_root = 0.01
-        self.p_accept = 0.05
-        self.p_give_up = 0.01
+        self.p_accept = 0.1
         self.p_give_up_root = 0.1
-
+        self.p_give_up_sigmoid = [0.1,0.5,self.graph.shape[0]/4] #p0, sharpness, centroid
+        
         # Init Variables for random tour
         self.target_count = 0
         self.RBF_center = np.array([0,0], dtype=float)
@@ -55,13 +57,11 @@ class Agent:
         elif self.state == 'Root':
             v = self.root()
         
-
         return v
     
 
     def RendezVous(self, neighborhood):
         
-
         cx,cy,r = smallestenclosingcircle.make_circle(neighborhood)
 
         heading = np.array([cx,cy])
@@ -96,11 +96,6 @@ class Agent:
         self.relative_to_target += v
 
         return v
-
-
-        
-
-        return 
     
 
     def in_place(self):
@@ -116,23 +111,23 @@ class Agent:
         return v
         
 
-
     def send_broadcast(self):
 
         if self.state == 'Root':
-            return [message(self.root_index,
+            return [message(self.shape_ID,
+                       self.root_index,
                        self.index, 
                        self.child1_index, 
                        self.child1_there, 
                        ), 
-                       message(self.root_index,
+                       message(self.shape_ID,self.root_index,
                        self.index, 
                        self.child2_index, 
                        self.child2_there, 
                        )]
         else:
             # Share you knowledge on the shape so far
-            return [message(self.root_index,
+            return [message(self.shape_ID,self.root_index,
                         self.index, 
                         self.child1_index, 
                         self.child1_there, 
@@ -165,21 +160,25 @@ class Agent:
         # Condition for breaking out of formation as child of root
         if self.state == 'In_Place':
             if not self.child1_there:
-                if rand < self.probability_decay(self.index):
+                thresh = self.custom_sigmoid(self.p_give_up_sigmoid[0],
+                                              self.p_give_up_sigmoid[1],
+                                              self.p_give_up_sigmoid[2],
+                                              self.distance_to_root)
+                if rand < thresh:
                     self.state = 'Random_Tour'
                     self.reset()
+                    self.target_count = 10
 
         # Condition for giving up as root
         elif self.state == 'Root':
 
             if not self.child1_there and not self.child2_there:
-                if rand < self.p_give_up_root*2:
+                if rand < self.p_give_up_root:
                     self.state = 'Random_Tour'
                     self.reset()
+                    self.target_count = 10
 
 
-
-        
 
     def random_tour_listen(self,N,B):
 
@@ -190,6 +189,8 @@ class Agent:
         # === Become Root only if you receive no broadcasts ROOT ===========
         if len(fragments_in_neighborhood) == 0:
             if rand < self.p_root:
+                # Generate ID for new shape
+                self.shape_ID = generate_random_string(5)
                 # Pick RootVertex/random select
                 self.index = random.randint(0,self.shape.shape[0]-1)
                 self.root_index = self.index
@@ -212,8 +213,10 @@ class Agent:
 
             # Find Parent: Pick an offer
             j = random.choice(available_spots)
+            self.shape_ID = B[j].shape_ID # Set ID of your shape
             self.root_index = B[j].root_index
             self.index = B[j].child1_index # Identify your own index in the graph
+            self.distance_to_root = distance_between_vertices(self.index, self.root_index, self.graph)
             # Read parents info from the offer and its relative position in the neighborhood
             self.parent_index = B[j].self_index
             self.parent_position = N[j]
@@ -265,10 +268,12 @@ class Agent:
 
 
     def reset(self):
+        self.shape_ID = None
         self.root_index = None
         self.parent_index = None 
         self.parent_position = None
         self.index = None
+        self.distance_to_root = None
         self.child1_index = None
         self.child1_there = False
         self.child2_index = None
@@ -305,10 +310,12 @@ class Agent:
                 offers.append(i)
 
         return offers
+    
+    def custom_sigmoid(self,p0,sharpness,centroid,x):
 
-    def probability_decay(self, index):
-        
-        return self.p_give_up# - self.shortest_paths[self.root_index,index]*(self.p_give_up/int(np.max(self.shortest_paths)))
+        return p0*(1-(1/(1+np.exp(-sharpness*(x-centroid)))))
+
+   
     
 
 
