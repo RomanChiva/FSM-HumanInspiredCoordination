@@ -29,6 +29,10 @@ class Agent:
         # Only Relevant when you are Root, otherwise remains None
         self.child2_index = None
         self.child2_there = False
+        # Remember the last shape you were in
+        self.prev = None
+        self.counter = 0
+        self.patience = 100
 
         # Current State
         self.state = 'Random_Tour'
@@ -36,15 +40,16 @@ class Agent:
 
         # Transition probabilities
         self.p_root = 0.01
-        self.p_accept = 0.1
-        self.p_give_up_root = 0.1
-        self.p_give_up_sigmoid = [0.1,0.5,self.graph.shape[0]/4] #p0, sharpness, centroid
+        self.p_accept = 0.2
+        self.p_give_up_root = 0.2
+        self.p_give_up_sigmoid = [0.05,0.7,self.graph.shape[0]/4] #p0, sharpness, centroid
         
         # Init Variables for random tour
         self.target_count = 0
         self.RBF_center = np.array([0,0], dtype=float)
         self.relative_to_target = np.array([0,0],dtype=float)
         self.RBF = RadialBasisFunction(self.RBF_center,1)
+    
        
 
     def move(self):
@@ -151,7 +156,6 @@ class Agent:
             self.shape_unsuccessful_check()
 
 
-
         
     def shape_unsuccessful_check(self):
 
@@ -167,7 +171,8 @@ class Agent:
                 if rand < thresh:
                     self.state = 'Random_Tour'
                     self.reset()
-                    self.target_count = 10
+                    self.target_count = 15
+                    self.p_accept = 0.05
 
         # Condition for giving up as root
         elif self.state == 'Root':
@@ -176,7 +181,7 @@ class Agent:
                 if rand < self.p_give_up_root:
                     self.state = 'Random_Tour'
                     self.reset()
-                    self.target_count = 10
+                    self.target_count = 15
 
 
 
@@ -186,6 +191,11 @@ class Agent:
         self.neighborhood = N
         rand = random.random()
         fragments_in_neighborhood = [1 for message in B if message.self_index != None]
+
+
+        if self.prev != None:
+            self.check_prev(B)
+
         # === Become Root only if you receive no broadcasts ROOT ===========
         if len(fragments_in_neighborhood) == 0:
             if rand < self.p_root:
@@ -314,6 +324,27 @@ class Agent:
     def custom_sigmoid(self,p0,sharpness,centroid,x):
 
         return p0*(1-(1/(1+np.exp(-sharpness*(x-centroid)))))
+    
+    def custom_sigmoid(self,p0,sharpness,centroid,x):
+
+        return p0*(1-(1/(1+np.exp(-sharpness*(x-centroid)))))
+    
+    def check_prev(self,B):
+
+        # Two conditions to break out
+        for message in B:
+            if message.shape_ID != self.prev and message.shape_ID != None:
+                self.p_accept = 0.1
+                self.prev = None
+
+        self.counter += 1
+        
+        if self.counter >= self.patience:
+            self.p_accept = 0.1
+            self.prev = None
+
+
+
 
    
     
