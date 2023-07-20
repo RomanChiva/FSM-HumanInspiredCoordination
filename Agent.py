@@ -1,6 +1,6 @@
 import numpy as np
 import random
-from utils import create_adjacency_matrix, generate_random_string, custom_sigmoid, distance_between_vertices
+from utils import create_adjacency_matrix, generate_random_string, generate_lobe_trajectory, distance_between_vertices, find_furthest_value, Centroid
 from scipy.sparse.csgraph import shortest_path
 from message import message
 import smallestenclosingcircle
@@ -40,16 +40,18 @@ class Agent:
 
         # Transition probabilities
         self.p_root = 0.01
-        self.p_accept = 0.2
+        self.p_accept = 0.5
         self.p_give_up_root = 0.2
-        self.p_give_up_sigmoid = [0.05,0.7,self.graph.shape[0]/4] #p0, sharpness, centroid
+        self.p_give_up_sigmoid = [0.02,0.7,self.graph.shape[0]/4] #p0, sharpness, centroid
         
         # Init Variables for random tour
-        self.target_count = 0
-        self.RBF_center = np.array([0,0], dtype=float)
-        self.relative_to_target = np.array([0,0],dtype=float)
-        self.RBF = RadialBasisFunction(self.RBF_center,1)
-    
+        self.tour_params = {'length':50, 'width':20, 'v':60}
+        self.tour_history = []
+        self.current_traj = None
+        self.current_index = 0
+        self.travel_to_centroid ={'switch':False, 'shape_ID':None, 'COM':np.array([0,0])}
+        self.shapes_seen = []
+
        
 
     def move(self):
@@ -82,24 +84,25 @@ class Agent:
     
     def random_tour(self):
 
-        current_value = self.RBF.evaluate(self.relative_to_target)
-        # Check if you have to generate a new RBF
-        if current_value > 0.9:
-            self.target_count += 1
-            # Generate random vector and set it relative to origin
-            rbf_width = self.target_count*10
-            rand = (np.random.rand(1,2)*2-1)*rbf_width
-            self.RBF_center = rand -self.relative_to_target
-            # Define the new RBF
-            self.RBF = RadialBasisFunction(self.RBF_center,rbf_width)
-           
-            
-        # Use gradient to get a velocity_vector 
-        grad = self.RBF.gradient(self.relative_to_target)
-        # Velocity Range (1 to 10) (Assumin g gradient vector magnitudes range from 0 to 0.15 approximtely)
-        v = -grad[0]*(1/np.linalg.norm(grad[0]) + 60)
-        self.relative_to_target += v
+        if self.travel_to_centroid['switch']:
+            v = self.travel_to_centroid['COM']/np.linalg.norm(self.travel_to_centroid['COM'])*2
+            self.travel_to_centroid['COM'] -= v
+            if np.linalg.norm(self.travel_to_centroid['COM']) <= 5:
+                self.travel_to_centroid['switch'] = False
+                self.travel_to_centroid['shape_ID'] = None
+                self.travel_to_centroid['COM'] = np.array([0,0])
 
+
+        else:
+            if len(self.tour_history) == 0 or self.current_index >= self.current_traj.shape[0] -2:
+                orientation = (random.random()-0.5)*2*np.pi if len(self.tour_history)==0 else find_furthest_value(self.tour_history)
+                self.tour_history.append(orientation)
+                self.current_traj = generate_lobe_trajectory(self.tour_params['length'],self.tour_params['width'],self.tour_params['v'],orientation)
+                self.current_index = 0
+            
+            v = self.current_traj[self.current_index+1] - self.current_traj[self.current_index]
+            self.current_index += 1
+            
         return v
     
 
@@ -192,7 +195,6 @@ class Agent:
         rand = random.random()
         fragments_in_neighborhood = [1 for message in B if message.self_index != None]
 
-
         if self.prev != None:
             self.check_prev(B)
 
@@ -238,7 +240,9 @@ class Agent:
             # Set State to InPlace
             self.state = 'In_Place'
 
-
+        # Check what type of motion shoul;d follow
+        self.check_new_shape(B,N)
+        
 
 
     def in_place_listen(self,N,B):
@@ -309,7 +313,7 @@ class Agent:
                 n.append(N[i])
                 b.append(message[0])
                 b.append(message[1])
-        return np.array(n), b
+        return np.array(n), b 
     
     def find_available_spots(self, B):
 
@@ -325,9 +329,9 @@ class Agent:
 
         return p0*(1-(1/(1+np.exp(-sharpness*(x-centroid)))))
     
-    def custom_sigmoid(self,p0,sharpness,centroid,x):
+    def accept(self,p0,sharpness,centroid,x):
 
-        return p0*(1-(1/(1+np.exp(-sharpness*(x-centroid)))))
+        return p0*((1/(1+np.exp(-sharpness*(x-centroid)))))
     
     def check_prev(self,B):
 
@@ -342,6 +346,31 @@ class Agent:
         if self.counter >= self.patience:
             self.p_accept = 0.1
             self.prev = None
+
+    def check_new_shape(self, B,N):
+
+        for i, b in enumerate(B):
+
+            if b.shape_ID not in self.shapes_seen and b.shape_ID != None:
+                self.shapes_seen.append(b.shape_ID)
+                # Find Relative vecotr to shape centroid
+                vec_b = self.shape[b.self_index]
+                shape_centroid = Centroid(self.shape)
+
+                b_relative = N[i]
+                b_abs = vec_b - shape_centroid
+
+                centroid_relative = b_relative - b_abs
+                # Set Values in dictionary
+                self.travel_to_centroid['switch'] = True
+                self.travel_to_centroid['shape_ID'] = b.shape_ID
+                self.travel_to_centroid['COM'] = centroid_relative
+            else:
+                pass
+
+
+
+
 
 
 

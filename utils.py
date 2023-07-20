@@ -111,3 +111,40 @@ def generate_random_string(length):
 def custom_sigmoid(p0,sharpness,centroid,x):
 
     return p0*(1-(1/(1+np.exp(-sharpness*(x-centroid)))))
+
+
+def generate_lobe_trajectory(length, width, num_points, orientation):
+    angles = np.linspace(0, 2 * np.pi, num_points)
+    
+    x_coords = (length/2)*np.cos(angles)*-1 + length/2
+    y_coords = np.sin(angles)* width/2
+    
+    result = np.column_stack((x_coords,y_coords))
+
+    angle = orientation*-1
+    # Create a rotation matrix
+    rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
+                                [np.sin(angle), np.cos(angle)]])
+
+
+    # Apply the rotation to the translated trajectory
+    result = np.dot(result, rotation_matrix)
+
+    return result
+
+
+def find_furthest_value(values):
+    values = np.array(values)
+    candidate_values = np.linspace(-np.pi,np.pi, num=100)  # Adjust the 'num' parameter as needed
+    
+    distances = np.abs(candidate_values[:, np.newaxis] - values)  # Calculate distances for all candidate values
+    min_distances = np.min(distances, axis=1)  # Find the minimum distances
+    
+    furthest_index = np.argmax(min_distances)  # Get the index of the furthest value
+    furthest_value = candidate_values[furthest_index]  # Retrieve the furthest value
+    
+    return furthest_value
+
+
+def Centroid(shape):
+    return np.mean(shape, axis=0)
