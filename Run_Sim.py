@@ -7,7 +7,7 @@ import matplotlib.animation as animation
 
 np.random.seed(123)
 
-def run_sim(env):
+def run_sim(env, margins=0):
 
     # Run the simulation and show an animation
 
@@ -28,14 +28,14 @@ def run_sim(env):
         ax1.clear()
 
         # Set Axis Limits
-        ax1.set_xlim(-env.env_size, env.env_size)
-        ax1.set_ylim(-env.env_size, env.env_size)
+        ax1.set_xlim(-env.env_size-margins, env.env_size+margins)
+        ax1.set_ylim(-env.env_size-margins, env.env_size+margins)
 
         # Set Ticks and Make Grid
 
         # Major ticks every 10, minor ticks every 5
-        major_ticks = np.arange(-env.env_size, env.env_size,20)
-        minor_ticks = np.arange(-env.env_size, env.env_size,10)
+        major_ticks = np.arange(-env.env_size-margins, env.env_size+margins,20)
+        minor_ticks = np.arange(-env.env_size-margins, env.env_size+margins,10)
 
         ax1.set_xticks(major_ticks)
         ax1.set_xticks(minor_ticks, minor=True)
