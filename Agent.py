@@ -3,9 +3,9 @@ import random
 from utils import create_adjacency_matrix, generate_random_string, generate_lobe_trajectory, distance_between_vertices, find_furthest_value, Centroid
 from scipy.sparse.csgraph import shortest_path
 from message import message
-import smallestenclosingcircle
 from Potential import RadialBasisFunction
 import matplotlib.pyplot as plt
+import sys
 
 class Agent:
 
@@ -29,17 +29,18 @@ class Agent:
         self.child2_index = None
         self.child2_there = False
         # Current Members of shape
-        self.vertices_covered = set()
+        self.vertices_covered = {}
+        self.belief_persistence = 1.2*self.shape.shape[0]
        
         # Current State
         self.state = 'Random_Tour'
         self.neighborhood = None
 
         # Transition probabilities
-        self.p_root = 0.01
-        self.p_accept = {'p0':0.3, 'sharpness':0.7, 'center':0.5} # Center govern as decimal of number of agents in the shape
+        self.p_root = 0.07
+        self.p_accept = {'p0':0.3, 'sharpness':0.5, 'center':0.5} # Center govern as decimal of number of agents in the shape
         self.p_give_up_root = 0.2 # Constant
-        self.p_give_up = {'p0':0.1, 'sharpness':0.6, 'center':0.4} # Sigmoid like before
+        self.p_give_up = {'p0':0.02, 'sharpness':0.7, 'center':0.3} # Sigmoid like before
         
         # Init Variables for random tour
         self.tour_params = {'length':50, 'width':30, 'v':40}
@@ -50,7 +51,8 @@ class Agent:
 
         # Avoid Rejoining the same shape
         self.shape_to_avoid = {'ID':'random_stringgg', 'patience':100, 'counter':0, 'avoiding':False}
-        
+
+        #self.plot_sigmoids()
 
     #===================================
     #++++++++++ MOVEMENT FUNCTIONS +++++
@@ -58,6 +60,7 @@ class Agent:
 
     def move(self):
         # Comment
+        
         if self.state == 'Random_Tour':
             v = self.random_tour()
         elif self.state == 'In_Place':
@@ -65,22 +68,7 @@ class Agent:
         elif self.state == 'Root':
             v = self.root()
         
-
-        return v
-    
-
-    def RendezVous(self, neighborhood):
-        
-        cx,cy,r = smallestenclosingcircle.make_circle(neighborhood)
-
-        heading = np.array([cx,cy])
-
-        v = heading/np.linalg.norm(heading)
-
-        if random.random() < self.RV_RT:
-            self.state = 'RandomTour'
-
-        self.curr_n_size = neighborhood.shape[0]
+        print(self.ID,len(self.vertices_covered),self.parent_index,self.parent_position)
 
         return v
     
@@ -93,7 +81,7 @@ class Agent:
                 self.travel_to_centroid['switch'] = False
                 self.travel_to_centroid['shape_ID'] = None
                 self.travel_to_centroid['COM'] = np.array([0,0])
-                self.tour_params = {'length':60, 'width':30, 'v':40}
+                self.tour_params = {'length':100, 'width':30, 'v':50}
                 self.tour_history = []
                 self.current_traj = None
                 self.current_index = 0
@@ -129,7 +117,9 @@ class Agent:
     #++++++++++LISTEN/Broadcast FUNCTIONS+++
     #================================
 
-    def send_broadcast(self):
+    def send_broadcast(self,t):
+        # Update your beielfs about the neigborhood before you broadcast them
+        self.update_shape_beliefs(t)
 
         if self.state == 'Root':
             return [message(self.shape_ID,
@@ -169,33 +159,34 @@ class Agent:
         return np.array(n), b 
 
 
-    def get_broadcast(self, n, b):
+    def get_broadcast(self, n, b,t):
 
         n,b = self.process_broadcast(n,b)
         
         if self.state == 'Random_Tour':
-            self.random_tour_listen(n,b)
+            self.random_tour_listen(n,b,t)
 
         elif self.state == 'In_Place':
-            self.in_place_listen(n,b)
+            self.in_place_listen(n,b,t)
             self.shape_unsuccessful_check()
 
         elif self.state == 'Root':
-            self.root_listen(n,b)
+            self.root_listen(n,b,t)
             self.shape_unsuccessful_check()
+        
 
 
     def find_available_spots(self, B):
         offers = []
         for i, message in enumerate(B):
-            if self.shape_to_avoid == message.shape_ID:
+            if self.shape_to_avoid['ID'] == message.shape_ID:
                 pass
             elif not message.child1_there and message.self_index != None:
                 offers.append(i)
 
         return offers
 
-    def random_tour_listen(self,N,B):
+    def random_tour_listen(self,N,B,t):
 
         # Store Neighborhood
         self.neighborhood = N
@@ -217,7 +208,7 @@ class Agent:
                 self.child1_there = False
                 self.child2_index = children[1][0]
                 self.child2_there = False
-                self.vertices_covered.add(self.index)
+                self.vertices_covered.update({self.index:t})
                 # Set state to root
                 self.state = 'Root'
 
@@ -235,7 +226,7 @@ class Agent:
             self.shape_ID = B[j].shape_ID # Set ID of your shape
             self.root_index = B[j].root_index
             self.index = B[j].child1_index # Identify your own index in the graph
-            self.vertices_covered.add(self.index)
+            self.vertices_covered[self.index] = t
             self.distance_to_root = distance_between_vertices(self.index, self.root_index, self.graph)
             # Read parents info from the offer and its relative position in the neighborhood
             self.parent_index = B[j].self_index
@@ -245,7 +236,7 @@ class Agent:
             mask = connections != self.parent_index
             self.child1_index = int(connections[mask])
             self.child1_there = False
-            self.vertices_covered = self.vertices_covered.union(B[j].vertices_covered)
+            self.vertices_covered.update(B[j].vertices_covered)
             
             # Set State to InPlace
             self.state = 'In_Place'
@@ -256,8 +247,18 @@ class Agent:
         
 
 
-    def in_place_listen(self,N,B):
+    def in_place_listen(self,N,B,t):
         
+        # Parent Check
+        neighbord_indices = []
+        for message in B:
+            neighbord_indices.append(message.self_index)
+        if self.parent_index not in neighbord_indices:
+            self.state = 'Random_Tour'
+            self.reset()
+            return None
+
+
         # Store Neighborhood
         self.neighborhood = N 
         # Assume your kid worn be there
@@ -265,10 +266,10 @@ class Agent:
         # Iterate over all messages
         for i,message in enumerate(B):
 
+
             # Check for new members in the shape
             if message.shape_ID == self.shape_ID:
-                self.vertices_covered = self.vertices_covered.union(message.vertices_covered)
-
+                self.vertices_covered.update(message.vertices_covered)
 
             # Update your parent's position
             if message.self_index == self.parent_index and message.shape_ID == self.shape_ID:
@@ -281,10 +282,13 @@ class Agent:
             elif message.self_index == self.child1_index and message.shape_ID == self.shape_ID:
                     self.child1_there = True
 
+        
+        
+
             
 
 
-    def root_listen(self,N,B):
+    def root_listen(self,N,B,t):
         # Store Neighborhood
         self.neighborhood = N
 
@@ -294,11 +298,12 @@ class Agent:
 
             # Check for new members in the shape
             if message.shape_ID == self.shape_ID:
-                self.vertices_covered = self.vertices_covered.union(message.vertices_covered)
+                self.vertices_covered.update(message.vertices_covered)
             if message.self_index == self.child1_index:
                 self.child1_there = True
             elif message.self_index == self.child2_index:
                 self.child2_there = True
+        
 
 
 
@@ -318,11 +323,13 @@ class Agent:
         self.child1_there = False
         self.child2_index = None
         self.child2_there = False
+        self.vertices_covered = {}
         # Init Variables for random tour
-        self.tour_params = {'length':100, 'width':50, 'v':40}
+        self.tour_params = {'length':150, 'width':60, 'v':40}
         self.tour_history = []
         self.current_traj = None
         self.current_index = 0
+        
 
     
     def inv_sigmoid(self,p0,sharpness,centroid,x):
@@ -406,8 +413,23 @@ class Agent:
         return (False, None)
 
         
+    def update_shape_beliefs(self,t):
+
+        to_remove = []
+        
+        for vertex in self.vertices_covered:
+            if vertex == self.index:
+                self.vertices_covered[vertex] = t
+            if t - self.vertices_covered[vertex] > self.belief_persistence:
+                to_remove.append(vertex)
+        
+        for vertex in to_remove:
+            del self.vertices_covered[vertex]
 
 
+        
+
+        
 
     def plot_sigmoids(self):
 
@@ -421,13 +443,15 @@ class Agent:
                                               self.p_give_up['sharpness'],
                                               self.p_give_up['center'],
                                               a)
-        
-        plt.scatter(a,result1)
-        plt.scatter(a, result2)
+        fig, axs = plt.subplots(1,2)
+        axs[0].scatter(a,result1)
+        axs[1].scatter(a, result2)
         plt.show()
 
    
     
+
+
 
 
         

@@ -9,6 +9,7 @@ class Env:
         self.env_size = env_size
         self.n_radius = neighborhood_radius
         self.shape = shape
+        self.t = 0
 
 
         if CONNECTED:
@@ -29,14 +30,15 @@ class Env:
         # Perform all actions simultaneously (although they are computed separately)
         # ASSUMPTION: Agents operate synchronously
         
-        # Exchange_messages and scan neighborhood
-
+        # Every agents broadcasts
+        current_broadcasts = self.get_broadcasts()
+        # scan neighborhood and get the broadcasts of neighborhood
         for agent in self.agents:
             # Get neighborhood and broadcast
 
-            n,b=self.get_local_info(agent['pos'])
+            n,b=self.get_local_info(agent['pos'],current_broadcasts)
 
-            agent['agent'].get_broadcast(n,b)
+            agent['agent'].get_broadcast(n,b,self.t)
         
         # Move
 
@@ -44,12 +46,13 @@ class Env:
 
             v = agent['agent'].move()
             agent['pos'] += v
+        self.t +=1
         
 
         
         
         
-    def get_local_info(self, pos):
+    def get_local_info(self, pos, current_broadcasts):
 
         # Remove self from list
         positions = self.make_positions_list()
@@ -65,7 +68,7 @@ class Env:
         neighborhood = relative_positions[mask2]
 
         # Neighborhood broadcasts
-        broadcast = [b for a, b in zip(mask1, self.get_broadcasts()) if a]
+        broadcast = [b for a, b in zip(mask1, current_broadcasts) if a]
         broadcast = [b for a, b in zip(mask2, broadcast) if a]
 
         return neighborhood, broadcast
@@ -82,7 +85,7 @@ class Env:
 
     def get_broadcasts(self):
 
-        broadcasts = [agent['agent'].send_broadcast() for agent in self.agents]
+        broadcasts = [agent['agent'].send_broadcast(self.t) for agent in self.agents]
 
         return broadcasts
 
