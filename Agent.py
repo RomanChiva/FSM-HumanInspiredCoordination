@@ -40,7 +40,7 @@ class Agent:
         self.p_root = 0.07
         self.p_accept = {'p0':0.3, 'sharpness':0.5, 'center':0.5} # Center govern as decimal of number of agents in the shape
         self.p_give_up_root = 0.2 # Constant
-        self.p_give_up = {'p0':0.02, 'sharpness':0.7, 'center':0.3} # Sigmoid like before
+        self.p_give_up = {'p0':0.07, 'sharpness':0.7, 'center':0.3} # Sigmoid like before
         
         # Init Variables for random tour
         self.tour_params = {'length':50, 'width':30, 'v':40}
