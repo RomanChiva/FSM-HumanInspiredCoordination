@@ -148,3 +148,21 @@ def find_furthest_value(values):
 
 def Centroid(shape):
     return np.mean(shape, axis=0)
+
+
+def maximum_distance(points,centroid):
+    
+    
+    
+    relative = points - centroid
+    dist = np.linalg.norm(relative,axis=1)
+    
+    # Find the maximum distance
+    max_distance = np.max(dist)
+    print(max_distance)
+    return max_distance
+
+
+result = generate_lobe_trajectory(50,50,50,np.array([0,0]))
+plt.scatter(result[:,0],result[:,1])
+plt.show()

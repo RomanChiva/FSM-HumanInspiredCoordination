@@ -46,6 +46,7 @@ class Env:
 
             v = agent['agent'].move()
             agent['pos'] += v
+        
         self.t +=1
         
 

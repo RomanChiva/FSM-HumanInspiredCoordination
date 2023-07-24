@@ -1,6 +1,6 @@
 import numpy as np
 import random
-from utils import create_adjacency_matrix, generate_random_string, generate_lobe_trajectory, distance_between_vertices, find_furthest_value, Centroid
+from utils import create_adjacency_matrix, generate_random_string, generate_lobe_trajectory, distance_between_vertices, find_furthest_value, Centroid, maximum_distance
 from scipy.sparse.csgraph import shortest_path
 from message import message
 from Potential import RadialBasisFunction
@@ -43,7 +43,12 @@ class Agent:
         self.p_give_up = {'p0':0.07, 'sharpness':0.7, 'center':0.3} # Sigmoid like before
         
         # Init Variables for random tour
-        self.tour_params = {'length':50, 'width':30, 'v':40}
+        self.tour_table = [{'Name':'Init','length':100, 'width':30, 'v':50},# Init
+                           {'Name':'Orbit','length':maximum_distance(self.shape,Centroid(self.shape)), 
+                            'width':maximum_distance(self.shape,Centroid(self.shape)), 
+                            'v':10, 'total_laps':7,'n_laps':0}, # Center
+                           {'Name':'Explore','length':140, 'width':30, 'v':50}] # Explore
+        self.tour_params = self.tour_table[0]
         self.tour_history = []
         self.current_traj = None
         self.current_index = 0
@@ -68,8 +73,6 @@ class Agent:
         elif self.state == 'Root':
             v = self.root()
         
-        print(self.ID,len(self.vertices_covered),self.parent_index,self.parent_position)
-
         return v
     
     def random_tour(self):
@@ -77,11 +80,13 @@ class Agent:
         if self.travel_to_centroid['switch']:
             v = self.travel_to_centroid['COM']/np.linalg.norm(self.travel_to_centroid['COM'])*2
             self.travel_to_centroid['COM'] -= v
-            if np.linalg.norm(self.travel_to_centroid['COM']) <= 5:
+            if np.linalg.norm(self.travel_to_centroid['COM']) <= 2:
                 self.travel_to_centroid['switch'] = False
                 self.travel_to_centroid['shape_ID'] = None
                 self.travel_to_centroid['COM'] = np.array([0,0])
-                self.tour_params = {'length':100, 'width':30, 'v':50}
+                self.tour_params = self.tour_table[1]
+                
+
                 self.tour_history = []
                 self.current_traj = None
                 self.current_index = 0
@@ -89,13 +94,28 @@ class Agent:
 
         else:
             if len(self.tour_history) == 0 or self.current_index >= self.current_traj.shape[0] -2:
+
+                # Limit the number of times you can spend obiting a shape, in case it dissociates
+                if self.tour_params['Name'] == 'Orbit':
+                    if self.tour_params['n_laps'] >= self.tour_params['total_laps']:
+                        self.tour_params = self.tour_table[2]
+                    else:
+                        self.tour_params['n_laps'] +=1
+                
                 orientation = (random.random()-0.5)*2*np.pi if len(self.tour_history)==0 else find_furthest_value(self.tour_history)
                 self.tour_history.append(orientation)
                 self.current_traj = generate_lobe_trajectory(self.tour_params['length'],self.tour_params['width'],self.tour_params['v'],orientation)
+                
                 self.current_index = 0
+                
             
             v = self.current_traj[self.current_index+1] - self.current_traj[self.current_index]
+            print(self.ID, self.tour_params['Name'], self.tour_params['length'], self.tour_params['width'], self.current_index)
             self.current_index += 1
+
+
+
+
             
         return v
     
@@ -195,7 +215,7 @@ class Agent:
 
 
         # === Become Root only if you receive no broadcasts ROOT ===========
-        if len(fragments_in_neighborhood) == 0 and N.shape[0] > 2:
+        if len(fragments_in_neighborhood) == 0 and N.shape[0] > 2 and self.tour_params['Name'] != 'Orbit':
             if rand < self.p_root:
                 # Generate ID for new shape
                 self.shape_ID = generate_random_string(5)
@@ -220,7 +240,6 @@ class Agent:
         # If there are no available offers len(offers) = 0 , thus probability you join is 0
         accepted_offer = self.evaluate_offers(available_spots, B)
         if accepted_offer[0]:
-
             # Find Parent: Pick an offer
             j = accepted_offer[1]
             self.shape_ID = B[j].shape_ID # Set ID of your shape
@@ -325,7 +344,7 @@ class Agent:
         self.child2_there = False
         self.vertices_covered = {}
         # Init Variables for random tour
-        self.tour_params = {'length':150, 'width':60, 'v':40}
+        self.tour_params = self.tour_table[2]
         self.tour_history = []
         self.current_traj = None
         self.current_index = 0
@@ -362,9 +381,8 @@ class Agent:
                 pass
 
         if self.shape_to_avoid['avoiding']:
-            self.shape_to_avoid['counter'] +=1
-            if self.shape_to_avoid['counter'] >= self.shape_to_avoid['counter']:
-                print('yo')
+            self.shape_to_avoid['counter'] += 1
+            if self.shape_to_avoid['counter'] >= self.shape_to_avoid['patience']:
                 self.shape_to_avoid['ID'] = 'random_stringg'
                 self.shape_to_avoid['counter'] = 0
                 self.shape_to_avoid['avoiding'] = False
@@ -383,6 +401,7 @@ class Agent:
                 if rand < thresh:
                     self.state = 'Random_Tour'
                     self.shape_to_avoid['ID'] = self.shape_ID
+                    self.shape_to_avoid['avoiding'] = True
                     self.reset()
                     
 
