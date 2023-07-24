@@ -35,6 +35,31 @@ def circle_maker(n_agents, radius):
     return resultant[:-1]
 
 
+def square_maker(width, height, points_on_width, points_on_height):
+    # Calculate half of the width and height to position the rectangle centered at the origin (0, 0)
+    half_width = width / 2.0
+    half_height = height / 2.0
+
+    # Generate points along the width and height of the rectangle
+    width_points = np.linspace(-half_width, half_width, points_on_width)
+    height_points = np.linspace(-half_height, half_height, points_on_height)
+
+    # Calculate points on the corners
+    top_left_corner = np.array([width_points[0], half_height])
+    top_right_corner = np.array([width_points[-1], half_height])
+    bottom_right_corner = np.array([width_points[-1], -half_height])
+    bottom_left_corner = np.array([width_points[0], -half_height])
+
+    # Combine the points to form the outline of the rectangle
+    rectangle_outline = np.vstack((
+        np.column_stack((width_points[1:], np.full(points_on_width - 1, half_height))),
+        np.column_stack((np.full(points_on_height - 1, half_width), height_points[:-1][::-1])),
+        np.column_stack((width_points[:-1][::-1], np.full(points_on_width - 1, -half_height))),
+        np.column_stack((np.full(points_on_height - 1, -half_width), height_points[1:])),
+    ))
+
+    return rectangle_outline, rectangle_outline.shape[0]
+
 def make_graph(shape):
     fully_connected = sp.spatial.distance_matrix(shape, shape)
     mst = sp.sparse.csgraph.minimum_spanning_tree(fully_connected)
@@ -162,7 +187,3 @@ def maximum_distance(points,centroid):
     print(max_distance)
     return max_distance
 
-
-result = generate_lobe_trajectory(50,50,50,np.array([0,0]))
-plt.scatter(result[:,0],result[:,1])
-plt.show()

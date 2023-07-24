@@ -37,7 +37,7 @@ class Agent:
         self.neighborhood = None
 
         # Transition probabilities
-        self.p_root = 0.07
+        self.p_root = 0.05
         self.p_accept = {'p0':0.3, 'sharpness':0.5, 'center':0.5} # Center govern as decimal of number of agents in the shape
         self.p_give_up_root = 0.2 # Constant
         self.p_give_up = {'p0':0.07, 'sharpness':0.7, 'center':0.3} # Sigmoid like before
@@ -46,9 +46,10 @@ class Agent:
         self.tour_table = [{'Name':'Init','length':100, 'width':30, 'v':50},# Init
                            {'Name':'Orbit','length':maximum_distance(self.shape,Centroid(self.shape)), 
                             'width':maximum_distance(self.shape,Centroid(self.shape)), 
-                            'v':10, 'total_laps':7,'n_laps':0}, # Center
+                            'v':25, 'total_laps':4,'n_laps':0}, # Center
                            {'Name':'Explore','length':140, 'width':30, 'v':50}] # Explore
-        self.tour_params = self.tour_table[0]
+        self.tour_params = self.tour_table[0].copy()
+        self.shapes_seen = []
         self.tour_history = []
         self.current_traj = None
         self.current_index = 0
@@ -72,6 +73,8 @@ class Agent:
             v = self.in_place()
         elif self.state == 'Root':
             v = self.root()
+
+        print(self.ID, self.shape_ID,self.index, self.shape_to_avoid['ID'], self.state)
         
         return v
     
@@ -81,12 +84,8 @@ class Agent:
             v = self.travel_to_centroid['COM']/np.linalg.norm(self.travel_to_centroid['COM'])*2
             self.travel_to_centroid['COM'] -= v
             if np.linalg.norm(self.travel_to_centroid['COM']) <= 2:
-                self.travel_to_centroid['switch'] = False
-                self.travel_to_centroid['shape_ID'] = None
-                self.travel_to_centroid['COM'] = np.array([0,0])
-                self.tour_params = self.tour_table[1]
-                
-
+                self.travel_to_centroid ={'switch':False, 'shape_ID':None, 'COM':np.array([0,0])}
+                self.tour_params = self.tour_table[1].copy()
                 self.tour_history = []
                 self.current_traj = None
                 self.current_index = 0
@@ -98,24 +97,19 @@ class Agent:
                 # Limit the number of times you can spend obiting a shape, in case it dissociates
                 if self.tour_params['Name'] == 'Orbit':
                     if self.tour_params['n_laps'] >= self.tour_params['total_laps']:
-                        self.tour_params = self.tour_table[2]
+                        self.tour_params = self.tour_table[2].copy()
                     else:
                         self.tour_params['n_laps'] +=1
+                        
                 
                 orientation = (random.random()-0.5)*2*np.pi if len(self.tour_history)==0 else find_furthest_value(self.tour_history)
                 self.tour_history.append(orientation)
                 self.current_traj = generate_lobe_trajectory(self.tour_params['length'],self.tour_params['width'],self.tour_params['v'],orientation)
-                
                 self.current_index = 0
                 
-            
             v = self.current_traj[self.current_index+1] - self.current_traj[self.current_index]
-            print(self.ID, self.tour_params['Name'], self.tour_params['length'], self.tour_params['width'], self.current_index)
+            
             self.current_index += 1
-
-
-
-
             
         return v
     
@@ -212,7 +206,7 @@ class Agent:
         self.neighborhood = N
         rand = random.random()
         fragments_in_neighborhood = [1 for message in B if message.self_index != None]
-
+        
 
         # === Become Root only if you receive no broadcasts ROOT ===========
         if len(fragments_in_neighborhood) == 0 and N.shape[0] > 2 and self.tour_params['Name'] != 'Orbit':
@@ -235,8 +229,8 @@ class Agent:
 
         #===== JOIN SHAPE ======
         # Find available offers
-        available_spots = [i for i, message in enumerate(B) if not message.child1_there and message.self_index != None]
         available_spots = self.find_available_spots(B)
+        
         # If there are no available offers len(offers) = 0 , thus probability you join is 0
         accepted_offer = self.evaluate_offers(available_spots, B)
         if accepted_offer[0]:
@@ -274,6 +268,9 @@ class Agent:
             neighbord_indices.append(message.self_index)
         if self.parent_index not in neighbord_indices:
             self.state = 'Random_Tour'
+            self.shape_to_avoid['ID'] = self.shape_ID
+            self.shape_to_avoid['avoiding'] = True
+            self.shapes_seen = [self.shape_ID]
             self.reset()
             return None
 
@@ -344,10 +341,12 @@ class Agent:
         self.child2_there = False
         self.vertices_covered = {}
         # Init Variables for random tour
-        self.tour_params = self.tour_table[2]
+        self.tour_params = self.tour_table[2].copy()
         self.tour_history = []
         self.current_traj = None
         self.current_index = 0
+        self.travel_to_centroid ={'switch':False, 'shape_ID':None, 'COM':np.array([0,0])}
+        
         
 
     
@@ -364,8 +363,9 @@ class Agent:
 
         for i, b in enumerate(B):
 
-            if b.shape_ID != self.shape_to_avoid['ID'] and b.shape_ID != None:
+            if b.shape_ID != self.shape_to_avoid['ID'] and b.shape_ID != None and b.shape_ID not in self.shapes_seen:
                 # Find Relative vecotr to shape centroid
+                self.shapes_seen = b.shape_ID
                 vec_b = self.shape[b.self_index]
                 shape_centroid = Centroid(self.shape)
 
@@ -402,6 +402,7 @@ class Agent:
                     self.state = 'Random_Tour'
                     self.shape_to_avoid['ID'] = self.shape_ID
                     self.shape_to_avoid['avoiding'] = True
+                    self.shapes_seen = [self.shape_ID]
                     self.reset()
                     
 
@@ -421,11 +422,14 @@ class Agent:
         
         random.shuffle(available)
         for i in available:
-            if random.random() > self.sigmoid(self.p_accept['p0'],
+            rand = random.random()
+            p = self.sigmoid(self.p_accept['p0'],
                                               1-self.p_accept['p0'], 
                                               self.p_accept['sharpness'],
                                               self.p_accept['center'],
-                                              len(B[i].vertices_covered)):
+                                              len(B[i].vertices_covered))
+            
+            if  rand < p: 
                 return (True,i)
             
         # None passed
