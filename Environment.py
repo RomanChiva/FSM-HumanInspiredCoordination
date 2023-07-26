@@ -1,28 +1,39 @@
 import numpy as np
 from Agent import Agent
 from utils import connected_pos_gen
+import random
+
 
 class Env:
 
-    def __init__(self, env_size,shape, n_agents,neighborhood_radius, CONNECTED=False) -> None:
+    def __init__(self, env_size,shape, n_agents,neighborhood_radius, params, CONNECTED=False) -> None:
 
         self.env_size = env_size
+        self.n_agents = n_agents
         self.n_radius = neighborhood_radius
         self.shape = shape
+        self.CONNECTED = CONNECTED
+        self.params = params
+        self.n_radius = neighborhood_radius
         self.t = 0
+        self.agents = []
 
 
-        if CONNECTED:
-            initial_positions = connected_pos_gen(self.env_size,n_agents, neighborhood_radius)
-            self.agents = [{'agent':Agent(self.shape,i), 
+        
+
+    def generate_agents(self):
+
+        if self.CONNECTED:
+            initial_positions = connected_pos_gen(self.env_size,self.n_agents, self.n_radius)
+            self.agents = [{'agent':Agent(self.params,self.shape,i), 
                             'pos':pos} 
                             for i, pos in enumerate(initial_positions)]
 
         else:
-            
-            self.agents = [{'agent':Agent(self.shape, agent), 
+            self.agents = [{'agent':Agent(self.params,self.shape, agent), 
                             'pos':(np.random.random((1,2))[0]-0.5)*2*self.env_size} 
-                            for agent in range(n_agents)]
+                            for agent in range(self.n_agents)]
+
 
 
     def timestep(self):
@@ -48,9 +59,6 @@ class Env:
             agent['pos'] += v
         
         self.t +=1
-        
-
-        
         
         
     def get_local_info(self, pos, current_broadcasts):
@@ -89,6 +97,34 @@ class Env:
         broadcasts = [agent['agent'].send_broadcast(self.t) for agent in self.agents]
 
         return broadcasts
+    
+    def done_assuming_convergence(self):
+
+        # Simplest CHeck possible Really
+        agent_sampled = random.choice(self.agents)
+        if len(agent_sampled['agent'].vertices_covered) == self.shape.shape[0]:
+            return True
+        else:
+            return False
+        
+    
+    def run_sim(self):
+
+        #Generate Fresh Batch of Agents
+        self.generate_agents()
+        self.t = 0
+        
+        DONE = False
+        # Run the simulation
+        while not DONE:
+            self.timestep()
+            DONE = self.done_assuming_convergence()
+
+        # Reutn really simple loss
+        return -self.t
+
+
+
 
 
     

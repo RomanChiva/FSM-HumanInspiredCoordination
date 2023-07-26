@@ -177,13 +177,9 @@ def Centroid(shape):
 
 def maximum_distance(points,centroid):
     
-    
-    
     relative = points - centroid
     dist = np.linalg.norm(relative,axis=1)
-    
     # Find the maximum distance
     max_distance = np.max(dist)
-    print(max_distance)
     return max_distance
 

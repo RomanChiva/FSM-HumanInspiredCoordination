@@ -9,7 +9,7 @@ import sys
 
 class Agent:
 
-    def __init__(self, shape, ID) -> None:
+    def __init__(self, p, shape, ID) -> None:
         
         # Global
         self.ID = ID # Only for Visualization and Debug
@@ -30,24 +30,24 @@ class Agent:
         self.child2_there = False
         # Current Members of shape
         self.vertices_covered = {}
-        self.belief_persistence = 1.2*self.shape.shape[0]
+        self.belief_persistence = self.shape.shape[0]
        
         # Current State
         self.state = 'Random_Tour'
         self.neighborhood = None
 
         # Transition probabilities
-        self.p_root = 0.05
-        self.p_accept = {'p0':0.3, 'sharpness':0.5, 'center':0.5} # Center govern as decimal of number of agents in the shape
-        self.p_give_up_root = 0.2 # Constant
-        self.p_give_up = {'p0':0.07, 'sharpness':0.7, 'center':0.3} # Sigmoid like before
+        self.p_root = p.p_r_0
+        self.p_give_up_root = p.p_r_GU # Constant
+        self.p_accept = {'p0':p.p_a_0, 'sharpness':p.p_a_s, 'center':p.p_a_c} # Center govern as decimal of number of agents in the shape
+        self.p_give_up = {'p0':p.p_GU_0, 'sharpness':p.p_GU_s, 'center':p.p_GU_c} # Sigmoid like before
         
         # Init Variables for random tour
-        self.tour_table = [{'Name':'Init','length':100, 'width':30, 'v':50},# Init
+        self.tour_table = [{'Name':'Init','length':p.init_L, 'width':p.init_W, 'v':p.init_D, 'step':p.init_step},# Init
                            {'Name':'Orbit','length':maximum_distance(self.shape,Centroid(self.shape)), 
                             'width':maximum_distance(self.shape,Centroid(self.shape)), 
-                            'v':25, 'total_laps':4,'n_laps':0}, # Center
-                           {'Name':'Explore','length':140, 'width':30, 'v':50}] # Explore
+                            'v':p.orbit_D, 'total_laps':4,'n_laps':0,'step':p.orbit_step}, # Center
+                           {'Name':'Explore','length':p.exp_L, 'width':p.exp_W, 'v':p.exp_D,'step':p.exp_step}] # Explore
         self.tour_params = self.tour_table[0].copy()
         self.shapes_seen = []
         self.tour_history = []
@@ -56,7 +56,7 @@ class Agent:
         self.travel_to_centroid ={'switch':False, 'shape_ID':None, 'COM':np.array([0,0])}
 
         # Avoid Rejoining the same shape
-        self.shape_to_avoid = {'ID':'random_stringgg', 'patience':100, 'counter':0, 'avoiding':False}
+        self.shape_to_avoid = {'ID':'random_stringgg', 'patience':p.patience, 'counter':0, 'avoiding':False}
 
         #self.plot_sigmoids()
 
@@ -74,7 +74,8 @@ class Agent:
         elif self.state == 'Root':
             v = self.root()
 
-        print(self.ID, self.shape_ID,self.index, self.shape_to_avoid['ID'], self.state)
+        #print(self.ID, self.state,self.index, self.child1_index,self.child1_there,self.child2_index,self.child2_there, self.tour_params['Name'])
+
         
         return v
     
@@ -104,6 +105,7 @@ class Agent:
                 
                 orientation = (random.random()-0.5)*2*np.pi if len(self.tour_history)==0 else find_furthest_value(self.tour_history)
                 self.tour_history.append(orientation)
+                self.tour_params['length'] += self.tour_params['step']
                 self.current_traj = generate_lobe_trajectory(self.tour_params['length'],self.tour_params['width'],self.tour_params['v'],orientation)
                 self.current_index = 0
                 
@@ -315,9 +317,9 @@ class Agent:
             # Check for new members in the shape
             if message.shape_ID == self.shape_ID:
                 self.vertices_covered.update(message.vertices_covered)
-            if message.self_index == self.child1_index:
+            if message.self_index == self.child1_index and message.shape_ID == self.shape_ID:
                 self.child1_there = True
-            elif message.self_index == self.child2_index:
+            elif message.self_index == self.child2_index and message.shape_ID == self.shape_ID:
                 self.child2_there = True
         
 

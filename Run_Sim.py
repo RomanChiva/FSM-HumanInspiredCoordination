@@ -7,7 +7,7 @@ import matplotlib.animation as animation
 
 np.random.seed(123)
 
-def run_sim(env, margins=0):
+def viz_sim(env, margins=0):
 
     # Run the simulation and show an animation
 
@@ -18,6 +18,7 @@ def run_sim(env, margins=0):
     ax1 = fig.add_subplot(1,1,1)
     
     colors_index = {'Root':'blue', 'In_Place':'green', 'Random_Tour':'red'}
+    env.generate_agents()
 
     def update(i):
 
