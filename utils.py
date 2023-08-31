@@ -60,6 +60,8 @@ def square_maker(width, height, points_on_width, points_on_height):
 
     return rectangle_outline, rectangle_outline.shape[0]
 
+
+
 def make_graph(shape):
     fully_connected = sp.spatial.distance_matrix(shape, shape)
     mst = sp.sparse.csgraph.minimum_spanning_tree(fully_connected)
@@ -81,6 +83,9 @@ def show_graph(shape,graph):
     plt.show()
 
 
+
+
+
 def create_adjacency_matrix(num_points):
     # Create an identity matrix
     adjacency_matrix = np.eye(num_points)
@@ -94,6 +99,9 @@ def create_adjacency_matrix(num_points):
     adjacency_matrix[num_points-1,0] = 1
 
     return adjacency_matrix
+
+
+
 
 def distance_between_vertices(v1, v2, adjacency_matrix):
     # Calculate the shortest path lengths between all pairs of vertices
@@ -109,7 +117,7 @@ def distance_between_vertices(v1, v2, adjacency_matrix):
 def connected_pos_gen(env_size, n_agents, r, CENTERED=True):
         
     if CENTERED:
-        pos_list = np.array([np.array([0,0])])
+        pos_list = np.array([np.array([0,0], dtype=float)])
     else:
         pos_list = (np.random.random((1,2))-0.5)*2*env_size
 
@@ -183,3 +191,27 @@ def maximum_distance(points,centroid):
     max_distance = np.max(dist)
     return max_distance
 
+
+
+def create_optimal_histogram(data, plot=True):
+    # Calculate the interquartile range (IQR)
+    q1, q3 = np.percentile(data, [25, 75])
+    iqr = q3 - q1
+
+    # Calculate the Freedman-Diaconis bin width
+    num_data_points = len(data)
+    bin_width = 2 * iqr / (num_data_points ** (1/3))
+
+    # Calculate the number of bins
+    data_range = max(data) - min(data)
+    num_bins = int(data_range / bin_width) + 1
+
+    # Plot the histogram if requested
+    if plot:
+        plt.hist(data, bins=num_bins, edgecolor='black')
+        plt.xlabel('Data')
+        plt.ylabel('Frequency')
+        plt.title('Optimal Histogram')
+        plt.show()
+
+    return num_bins, bin_width

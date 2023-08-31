@@ -12,7 +12,7 @@ def viz_sim(env, margins=0):
     # Run the simulation and show an animation
 
     # Create figure
-    fig = plt.figure()
+    fig = plt.figure(figsize=(20,20))
     fig.suptitle('Decentralized Multi-Agent Template')
     # Create plot inside figure
     ax1 = fig.add_subplot(1,1,1)

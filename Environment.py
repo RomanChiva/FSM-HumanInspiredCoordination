@@ -6,33 +6,33 @@ import random
 
 class Env:
 
-    def __init__(self, env_size,shape, n_agents,neighborhood_radius, params, CONNECTED=False) -> None:
+    def __init__(self, env_size,shape, n_agents,neighborhood_radius, params, spread_radius) -> None:
 
         self.env_size = env_size
         self.n_agents = n_agents
         self.n_radius = neighborhood_radius
         self.shape = shape
-        self.CONNECTED = CONNECTED
         self.params = params
         self.n_radius = neighborhood_radius
         self.t = 0
         self.agents = []
+        self.spread_radius = spread_radius
 
 
         
 
     def generate_agents(self):
 
-        if self.CONNECTED:
-            initial_positions = connected_pos_gen(self.env_size,self.n_agents, self.n_radius)
-            self.agents = [{'agent':Agent(self.params,self.shape,i), 
-                            'pos':pos} 
-                            for i, pos in enumerate(initial_positions)]
+        # if self.CONNECTED:
+        #     initial_positions = connected_pos_gen(self.env_size,self.n_agents, self.n_radius)
+        #     self.agents = [{'agent':Agent(self.params,self.shape,i), 
+        #                     'pos':pos} 
+        #                     for i, pos in enumerate(initial_positions)]
 
-        else:
-            self.agents = [{'agent':Agent(self.params,self.shape, agent), 
-                            'pos':(np.random.random((1,2))[0]-0.5)*2*self.env_size} 
-                            for agent in range(self.n_agents)]
+        
+        self.agents = [{'agent':Agent(self.params,self.shape, agent), 
+                        'pos':(np.random.random((1,2))[0]-0.5)*2*self.spread_radius} 
+                        for agent in range(self.n_agents)]
 
 
 
@@ -121,6 +121,7 @@ class Env:
             DONE = self.done_assuming_convergence()
 
         # Reutn really simple loss
+        print(self.t)
         return -self.t
 
 

@@ -58,7 +58,6 @@ class Agent:
         # Avoid Rejoining the same shape
         self.shape_to_avoid = {'ID':'random_stringgg', 'patience':p.patience, 'counter':0, 'avoiding':False}
 
-        #self.plot_sigmoids()
 
     #===================================
     #++++++++++ MOVEMENT FUNCTIONS +++++
@@ -74,10 +73,14 @@ class Agent:
         elif self.state == 'Root':
             v = self.root()
 
-        #print(self.ID, self.state,self.index, self.child1_index,self.child1_there,self.child2_index,self.child2_there, self.tour_params['Name'])
+        repulsion = self.avoid_neighbors()
 
-        
+        print(repulsion)
+
+        v = v + repulsion
+
         return v
+        #print(self.ID, self.state,self.index, self.child1_index,self.child1_there,self.child2_index,self.child2_there, self.tour_params['Name'])
     
     def random_tour(self):
 
@@ -452,7 +455,26 @@ class Agent:
             del self.vertices_covered[vertex]
 
 
+
+    def rbf_gaussian(self,distance, width=3, height=10):
+        return -height*np.exp(-(distance ** 2) / (2 * width ** 2))
         
+        
+    def avoid_neighbors(self):
+
+        if self.neighborhood.shape[0] > 0:
+            # Find Magnitude
+            distances = np.linalg.norm(self.neighborhood, axis=1)
+            # Apply RBF centered at each neighbor
+            rbf_mag = self.rbf_gaussian(distances)
+            # FInd repulsions, same direction
+            forces = (self.neighborhood/distances[:,np.newaxis])*rbf_mag[:,np.newaxis]
+
+            return np.sum(forces, axis=0)
+        
+        else:
+            return np.array([0.0,0.0])
+
 
         
 
