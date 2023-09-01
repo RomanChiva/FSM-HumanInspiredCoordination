@@ -54,7 +54,7 @@ def viz_sim(env, margins=0):
         #         parent = agent['pos'] + agent['agent'].parent_position
         #         plt.plot(pos, parent)
         for agent in env.agents:
-            ax1.annotate(agent['agent'].ID, (agent['pos'][0], agent['pos'][1]))
+            ax1.annotate(str(agent['agent'].shape_ID), (agent['pos'][0], agent['pos'][1]),size=5)
 
     ani = animation.FuncAnimation(fig, update, interval = 100)
     plt.show()

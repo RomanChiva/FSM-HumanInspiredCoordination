@@ -44,19 +44,27 @@ class Agent:
         
         # Init Variables for random tour
         self.tour_table = [{'Name':'Init','length':p.init_L, 'width':p.init_W, 'v':p.init_D, 'step':p.init_step},# Init
-                           {'Name':'Orbit','length':maximum_distance(self.shape,Centroid(self.shape)), 
+                           {'Name':'Orbit','length':0.7*maximum_distance(self.shape,Centroid(self.shape)), 
                             'width':maximum_distance(self.shape,Centroid(self.shape)), 
                             'v':p.orbit_D, 'total_laps':4,'n_laps':0,'step':p.orbit_step}, # Center
                            {'Name':'Explore','length':p.exp_L, 'width':p.exp_W, 'v':p.exp_D,'step':p.exp_step}] # Explore
         self.tour_params = self.tour_table[0].copy()
-        self.shapes_seen = []
         self.tour_history = []
         self.current_traj = None
         self.current_index = 0
         self.travel_to_centroid ={'switch':False, 'shape_ID':None, 'COM':np.array([0,0])}
 
         # Avoid Rejoining the same shape
-        self.shape_to_avoid = {'ID':'random_stringgg', 'patience':p.patience, 'counter':0, 'avoiding':False}
+        self.shapes_seen = {'ID':{}, 'patience':p.patience}
+        self.shapes_to_avoid = {'ID':{}, 'patience':p.patience}
+
+        # Reoulsion Gains
+        self.t_g = p.tour_gain
+        self.i_g = p.in_place_gain
+        self.r_g = p.root_gain
+
+
+        #self.plot_sigmoids()
 
 
     #===================================
@@ -64,23 +72,18 @@ class Agent:
     #===================================
 
     def move(self):
-        # Comment
+        # Directions + Repulsion Term!! Carefully Tuned
         
         if self.state == 'Random_Tour':
-            v = self.random_tour()
+            v = self.random_tour()+ self.avoid_neighbors()*self.t_g
         elif self.state == 'In_Place':
-            v = self.in_place()
+            v = self.in_place()+ self.avoid_neighbors()*self.i_g
         elif self.state == 'Root':
-            v = self.root()
+            v = self.root()+ self.avoid_neighbors()*self.r_g
 
-        repulsion = self.avoid_neighbors()
-
-        print(repulsion)
-
-        v = v + repulsion
 
         return v
-        #print(self.ID, self.state,self.index, self.child1_index,self.child1_there,self.child2_index,self.child2_there, self.tour_params['Name'])
+       
     
     def random_tour(self):
 
@@ -198,12 +201,33 @@ class Agent:
     def find_available_spots(self, B):
         offers = []
         for i, message in enumerate(B):
-            if self.shape_to_avoid['ID'] == message.shape_ID:
+            if message.shape_ID in self.shapes_to_avoid['ID']:
                 pass
             elif not message.child1_there and message.self_index != None:
                 offers.append(i)
 
         return offers
+    
+    def evaluate_offers(self, available, B):
+
+        # No offers in the first place
+        if len(available) == 0:
+            return (False, None)
+        
+        random.shuffle(available)
+        for i in available:
+            rand = random.random()
+            p = self.sigmoid(self.p_accept['p0'],
+                                              1-self.p_accept['p0'], 
+                                              self.p_accept['sharpness'],
+                                              self.p_accept['center'],
+                                              len(B[i].vertices_covered))
+            
+            if  rand < p: 
+                return (True,i)
+            
+        # None passed
+        return (False, None)
 
     def random_tour_listen(self,N,B,t):
 
@@ -270,12 +294,12 @@ class Agent:
         # Parent Check
         neighbord_indices = []
         for message in B:
+
             neighbord_indices.append(message.self_index)
         if self.parent_index not in neighbord_indices:
             self.state = 'Random_Tour'
-            self.shape_to_avoid['ID'] = self.shape_ID
-            self.shape_to_avoid['avoiding'] = True
-            self.shapes_seen = [self.shape_ID]
+            self.shapes_to_avoid['ID'][self.shape_ID] = self.shapes_to_avoid['patience']
+            self.shapes_seen['ID'][self.shape_ID] = self.shapes_seen['patience']
             self.reset()
             return None
 
@@ -296,12 +320,24 @@ class Agent:
             if message.self_index == self.parent_index and message.shape_ID == self.shape_ID:
                 self.parent_position = N[i]
             # Check for yourself: If you find someone with the same index you might have toi give up your index
-            elif message.self_index == self.index and message.shape_ID == self.shape_ID: #and random.random() < 0.5:
+            elif message.self_index == self.index and message.shape_ID == self.shape_ID and random.random() < 0.3:
                 self.reset()
                 self.state = 'Random_Tour'
+                print('Found Yourself',t)
             # Check if if your children are there
             elif message.self_index == self.child1_index and message.shape_ID == self.shape_ID:
                     self.child1_there = True
+
+            # Final CHeck for neighboring shapes
+
+            if message.shape_ID != self.shape_ID and len(message.vertices_covered) > len(self.vertices_covered) and random.random() < 0.05:
+                self.state = 'Random_Tour'
+                self.shapes_to_avoid['ID'][self.shape_ID] = self.shapes_to_avoid['patience']
+                self.shapes_seen['ID'][self.shape_ID] = self.shapes_seen['patience']
+                self.reset()
+                print('Yaaaaa',t)
+                
+
 
         
         
@@ -324,6 +360,13 @@ class Agent:
                 self.child1_there = True
             elif message.self_index == self.child2_index and message.shape_ID == self.shape_ID:
                 self.child2_there = True
+
+            if message.shape_ID != self.shape_ID and len(message.vertices_covered) > len(self.vertices_covered) and random.random() < 0.05:
+                self.state = 'Random_Tour'
+                self.shapes_to_avoid['ID'][self.shape_ID] = self.shapes_to_avoid['patience']
+                self.shapes_seen['ID'][self.shape_ID] = self.shapes_seen['patience']
+                self.reset()
+                print('Yoooooo',t)
         
 
 
@@ -368,9 +411,9 @@ class Agent:
 
         for i, b in enumerate(B):
 
-            if b.shape_ID != self.shape_to_avoid['ID'] and b.shape_ID != None and b.shape_ID not in self.shapes_seen:
+            if b.shape_ID not in self.shapes_to_avoid['ID'] and b.shape_ID != None and b.shape_ID not in self.shapes_seen['ID']:
                 # Find Relative vecotr to shape centroid
-                self.shapes_seen = b.shape_ID
+                self.shapes_seen['ID'][b.shape_ID] = self.shapes_seen['patience']
                 vec_b = self.shape[b.self_index]
                 shape_centroid = Centroid(self.shape)
 
@@ -384,13 +427,24 @@ class Agent:
                 self.travel_to_centroid['COM'] = centroid_relative
             else:
                 pass
+            
+            remove1 = []
+            remove2 = []
 
-        if self.shape_to_avoid['avoiding']:
-            self.shape_to_avoid['counter'] += 1
-            if self.shape_to_avoid['counter'] >= self.shape_to_avoid['patience']:
-                self.shape_to_avoid['ID'] = 'random_stringg'
-                self.shape_to_avoid['counter'] = 0
-                self.shape_to_avoid['avoiding'] = False
+            for shape in self.shapes_to_avoid['ID']:
+                self.shapes_to_avoid['ID'][shape] -= 1
+                if self.shapes_to_avoid['ID'][shape] <= 0: remove1.append(shape)
+
+            for shape in self.shapes_seen['ID']:
+                self.shapes_seen['ID'][shape] -= 1
+                if self.shapes_seen['ID'][shape] <= 0: remove2.append(shape)
+
+            for shape in remove1:
+                del self.shapes_to_avoid['ID'][shape]
+            for shape in remove2:
+                del self.shapes_seen['ID'][shape]
+
+
 
     def shape_unsuccessful_check(self):
 
@@ -405,10 +459,10 @@ class Agent:
                                               len(self.vertices_covered))
                 if rand < thresh:
                     self.state = 'Random_Tour'
-                    self.shape_to_avoid['ID'] = self.shape_ID
-                    self.shape_to_avoid['avoiding'] = True
-                    self.shapes_seen = [self.shape_ID]
+                    self.shapes_to_avoid['ID'][self.shape_ID] = self.shapes_to_avoid['patience']
+                    self.shapes_seen['ID'][self.shape_ID] = self.shapes_seen['patience']
                     self.reset()
+                    print('LEFT_INPLACE', self.ID)
                     
 
         # Condition for giving up as root
@@ -419,26 +473,7 @@ class Agent:
                     self.state = 'Random_Tour'
                     self.reset()
 
-    def evaluate_offers(self, available, B):
-
-        # No offers in the first place
-        if len(available) == 0:
-            return (False, None)
-        
-        random.shuffle(available)
-        for i in available:
-            rand = random.random()
-            p = self.sigmoid(self.p_accept['p0'],
-                                              1-self.p_accept['p0'], 
-                                              self.p_accept['sharpness'],
-                                              self.p_accept['center'],
-                                              len(B[i].vertices_covered))
-            
-            if  rand < p: 
-                return (True,i)
-            
-        # None passed
-        return (False, None)
+    
 
         
     def update_shape_beliefs(self,t):
