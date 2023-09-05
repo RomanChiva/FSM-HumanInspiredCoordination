@@ -10,7 +10,7 @@ if __name__ == '__main__':
 
     # Shape we wish to from: Points MUST BE ORDERED!!! 
     sensing_radius = 30
-    spread = 2
+    spread = 4
     shape_main_axis=2
     AR = 1
 

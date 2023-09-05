@@ -34,7 +34,7 @@ class generate_agent_parameters():
         self.patience = 30
 
         # Repulsion Gains
-        self.tour_gain = 1
+        self.tour_gain = 1.3
         self.in_place_gain = 0.3
         self.root_gain = 0.3
 
