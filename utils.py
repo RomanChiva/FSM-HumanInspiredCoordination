@@ -4,7 +4,11 @@ import matplotlib.pyplot as plt
 from scipy.sparse.csgraph import shortest_path
 import random
 import string
-
+import scipy.stats as stats
+from scipy.stats import weibull_min
+from scipy.optimize import curve_fit
+from scipy.stats import mode
+from scipy.stats import lognorm
 # Funcs to turn point cloud into a graph
 
 def make_undirected(AM):
@@ -35,6 +39,8 @@ def circle_maker(n_agents, radius):
     return resultant[:-1]
 
 
+
+
 def square_maker(width, height, points_on_width, points_on_height):
     # Calculate half of the width and height to position the rectangle centered at the origin (0, 0)
     half_width = width / 2.0
@@ -59,6 +65,7 @@ def square_maker(width, height, points_on_width, points_on_height):
     ))
 
     return rectangle_outline, rectangle_outline.shape[0]
+
 
 
 
@@ -166,6 +173,15 @@ def generate_lobe_trajectory(length, width, num_points, orientation):
     return result
 
 
+def perpendicular_gen(start_angle_radians):
+    angles_radians = [start_angle_radians]
+    for _ in range(3):
+        start_angle_radians += np.pi / 2
+        angles_radians.append(start_angle_radians % (2 * np.pi))  # Ensure angles stay within the range [0, 2π)
+    return angles_radians
+
+
+
 def find_furthest_value(values):
     values = np.array(values)
     candidate_values = np.linspace(-np.pi,np.pi, num=100)  # Adjust the 'num' parameter as needed
@@ -191,6 +207,9 @@ def maximum_distance(points,centroid):
     max_distance = np.max(dist)
     return max_distance
 
+def weib(x,n,a):
+    return (a / n) * (x / n)**(a - 1) * np.exp(-(x / n)**a)
+
 
 
 def create_optimal_histogram(data, plot=True):
@@ -215,3 +234,86 @@ def create_optimal_histogram(data, plot=True):
         plt.show()
 
     return num_bins, bin_width
+
+def fit_lognormal_and_plot_histogram(data, bins=15, plot=False, Print=False):
+
+    num_bins, bin_width = create_optimal_histogram(data, plot=False)
+    num_bins = max(num_bins,bins)
+    # Create a histogram of the data
+    counts, bin_edges = np.histogram(data, bins=num_bins, density=True)
+
+    # Calculate bin centers
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+    # Fit a lognormal distribution to the histogram centroids
+    def lognormal_fit(x, mu, sigma):
+        return lognorm.pdf(x, sigma, scale=np.exp(mu))
+
+    initial_params = [0, 1]  # Initial guess for mean and standard deviation
+    fitted_params, _ = curve_fit(lognormal_fit, bin_centers, counts, p0=initial_params)
+
+    if plot:
+        # Plot the histogram
+        plt.hist(data, bins=num_bins, density=True, alpha=0.5, label='Histogram')
+
+        # Plot the fitted lognormal distribution
+        x_range = np.linspace(min(data), max(data), 1000)
+        plt.plot(x_range, lognormal_fit(x_range, *fitted_params), 'r-', label='Lognormal Fit')
+
+        # Add labels and legend
+        plt.xlabel('Game Duration')
+        plt.ylabel('Probability')
+        plt.legend()
+        plt.suptitle('Convergence Time Distrbution')
+
+        # Show the plot
+        plt.show()
+    if Print:
+        print({'mu': fitted_params[0], 'sigma': fitted_params[1]})
+
+    # Return the parameters of the fitted lognormal distribution
+    return {'mu': fitted_params[0], 'sigma': fitted_params[1]}
+
+
+def filt_above(input_list, threshold):
+    # Use list comprehension to filter out values above the threshold
+    filtered_list = [x for x in input_list if x <= threshold]
+    
+    # Calculate the number of removed values
+    removed_count = len(input_list) - len(filtered_list)
+    
+    return filtered_list#, removed_count
+
+
+
+def plot_dual_y_axis(x, y1, y2,x_label, label1, label2, title, y1_lower_limit, y1_upper_limit, y2_lower_limit, y2_upper_limit):
+    # Create a figure and the first axes (left y-axis)
+    fig, ax1 = plt.subplots()
+
+    # Plot the first series on the left y-axis
+    ax1.plot(x, y1, color='b', label=label1)
+    ax1.set_xlabel(x_label)
+    ax1.set_ylabel(label1, color='b')
+    ax1.tick_params(axis='y', labelcolor='b')
+    ax1.set_ylim(y1_lower_limit, y1_upper_limit)  # Set the limits for the left y-axis
+
+    # Create a second axes (right y-axis) sharing the same x-axis
+    ax2 = ax1.twinx()
+
+    # Plot the second series on the right y-axis
+    ax2.plot(x, y2, color='r', label=label2)
+    ax2.set_ylabel(label2, color='r')
+    ax2.tick_params(axis='y', labelcolor='r')
+    ax2.set_ylim(y2_lower_limit, y2_upper_limit)  # Set the limits for the right y-axis
+
+    # Adding legends for both series
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    lines = lines1 + lines2
+    labels = labels1 + labels2
+    ax1.legend(lines, labels, loc='upper left')
+    plt.grid()
+    plt.title(title)
+    plt.tight_layout()
+    plt.savefig('figs/'+x_label+'2'+'.png')
+    plt.show()

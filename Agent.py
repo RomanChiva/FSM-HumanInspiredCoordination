@@ -1,6 +1,6 @@
 import numpy as np
 import random
-from utils import create_adjacency_matrix, generate_random_string, generate_lobe_trajectory, distance_between_vertices, find_furthest_value, Centroid, maximum_distance
+from utils import create_adjacency_matrix, generate_random_string, generate_lobe_trajectory, distance_between_vertices, find_furthest_value, Centroid, maximum_distance, perpendicular_gen
 from scipy.sparse.csgraph import shortest_path
 from message import message
 from Potential import RadialBasisFunction
@@ -46,7 +46,7 @@ class Agent:
         self.tour_table = [{'Name':'Init','length':p.init_L, 'width':p.init_W, 'v':p.init_D, 'step':p.init_step},# Init
                            {'Name':'Orbit','length':0.7*maximum_distance(self.shape,Centroid(self.shape)), 
                             'width':maximum_distance(self.shape,Centroid(self.shape)), 
-                            'v':p.orbit_D, 'total_laps':4,'n_laps':0,'step':p.orbit_step}, # Center
+                            'v':p.orbit_D, 'total_laps':2,'n_laps':0,'step':p.orbit_step}, # Center
                            {'Name':'Explore','length':p.exp_L, 'width':p.exp_W, 'v':p.exp_D,'step':p.exp_step}] # Explore
         self.tour_params = self.tour_table[0].copy()
         self.tour_history = []
@@ -81,16 +81,16 @@ class Agent:
         elif self.state == 'Root':
             v = self.root()+ self.avoid_neighbors()*self.r_g
 
-
+       
         return v
        
     
     def random_tour(self):
 
         if self.travel_to_centroid['switch']:
-            v = self.travel_to_centroid['COM']/np.linalg.norm(self.travel_to_centroid['COM'])*2
+            v = min(5,np.linalg.norm(self.travel_to_centroid['COM'])*0.1)*(self.travel_to_centroid['COM']/np.linalg.norm(self.travel_to_centroid['COM']))
             self.travel_to_centroid['COM'] -= v
-            if np.linalg.norm(self.travel_to_centroid['COM']) <= 2:
+            if np.linalg.norm(self.travel_to_centroid['COM']) <= 5:
                 self.travel_to_centroid ={'switch':False, 'shape_ID':None, 'COM':np.array([0,0])}
                 self.tour_params = self.tour_table[1].copy()
                 self.tour_history = []
@@ -100,7 +100,7 @@ class Agent:
 
         else:
             if len(self.tour_history) == 0 or self.current_index >= self.current_traj.shape[0] -2:
-
+                
                 # Limit the number of times you can spend obiting a shape, in case it dissociates
                 if self.tour_params['Name'] == 'Orbit':
                     if self.tour_params['n_laps'] >= self.tour_params['total_laps']:
@@ -109,10 +109,10 @@ class Agent:
                         self.tour_params['n_laps'] +=1
                         
                 
-                orientation = (random.random()-0.5)*2*np.pi if len(self.tour_history)==0 else find_furthest_value(self.tour_history)
-                self.tour_history.append(orientation)
+                orient = (random.random()-0.5)*2*np.pi if len(self.tour_history)==0 else find_furthest_value(self.tour_history)
+                self.tour_history.append(orient)
                 self.tour_params['length'] += self.tour_params['step']
-                self.current_traj = generate_lobe_trajectory(self.tour_params['length'],self.tour_params['width'],self.tour_params['v'],orientation)
+                self.current_traj = np.concatenate([generate_lobe_trajectory(self.tour_params['length'],self.tour_params['width'],self.tour_params['v'],orientation) for orientation in perpendicular_gen(orient)])
                 self.current_index = 0
                 
             v = self.current_traj[self.current_index+1] - self.current_traj[self.current_index]
@@ -182,7 +182,6 @@ class Agent:
 
 
     def get_broadcast(self, n, b,t):
-
         n,b = self.process_broadcast(n,b)
         
         if self.state == 'Random_Tour':
@@ -323,7 +322,7 @@ class Agent:
             elif message.self_index == self.index and message.shape_ID == self.shape_ID and random.random() < 0.3:
                 self.reset()
                 self.state = 'Random_Tour'
-                print('Found Yourself',t)
+                
             # Check if if your children are there
             elif message.self_index == self.child1_index and message.shape_ID == self.shape_ID:
                     self.child1_there = True
@@ -335,7 +334,6 @@ class Agent:
                 self.shapes_to_avoid['ID'][self.shape_ID] = self.shapes_to_avoid['patience']
                 self.shapes_seen['ID'][self.shape_ID] = self.shapes_seen['patience']
                 self.reset()
-                print('Yaaaaa',t)
                 
 
 
@@ -366,7 +364,7 @@ class Agent:
                 self.shapes_to_avoid['ID'][self.shape_ID] = self.shapes_to_avoid['patience']
                 self.shapes_seen['ID'][self.shape_ID] = self.shapes_seen['patience']
                 self.reset()
-                print('Yoooooo',t)
+                
         
 
 
@@ -462,7 +460,7 @@ class Agent:
                     self.shapes_to_avoid['ID'][self.shape_ID] = self.shapes_to_avoid['patience']
                     self.shapes_seen['ID'][self.shape_ID] = self.shapes_seen['patience']
                     self.reset()
-                    print('LEFT_INPLACE', self.ID)
+                    
                     
 
         # Condition for giving up as root
@@ -521,13 +519,25 @@ class Agent:
                                               self.p_accept['sharpness'],
                                               self.p_accept['center'],
                                               a)
+        
         result2 = self.inv_sigmoid(self.p_give_up['p0'], 
                                               self.p_give_up['sharpness'],
                                               self.p_give_up['center'],
                                               a)
+        
+
         fig, axs = plt.subplots(1,2)
-        axs[0].scatter(a,result1)
-        axs[1].scatter(a, result2)
+        axs[0].plot(a,result1,c='g', label='p_accept')
+        axs[1].plot(a, result2,c='r',label='p_leave')
+
+        axs[0].xlabel = 'N_agents'
+        axs[1].xlabel = 'N_agents'
+
+
+        axs[0].grid()
+        axs[0].legend()
+        axs[1].grid()
+        axs[1].legend()
         plt.show()
 
    

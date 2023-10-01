@@ -120,9 +120,12 @@ class Env:
             self.timestep()
             DONE = self.done_assuming_convergence()
 
+            if self.t >= 10000:
+                DONE = True
+
         # Reutn really simple loss
-        print(self.t)
-        return -self.t
+        #print(self.t)
+        return self.t
 
 
 
