@@ -14,7 +14,7 @@ if __name__ == '__main__':
     shape_main_axis=2
     AR = 1
 
-    circle = circle_maker(20,60)
+    circle = circle_maker(10,35)
     rectangle, n_agents = square_maker(sensing_radius*shape_main_axis,sensing_radius*shape_main_axis/AR,4,4)
     
     angle = 0.75 # More or less 90 degrees
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     parameters = generate_agent_parameters(sensing_radius,spread)
 
     # DEFINE ENVIRONMENT: Env SIze, shape, N Agents, Nbrhd Radius, Spawn as Connected Graph
-    env = Env(100,circle,20,sensing_radius,parameters,spread*sensing_radius)
+    env = Env(100,circle,10,sensing_radius,parameters,spread*sensing_radius)
     t = env.run_sim()
     print(t)
 

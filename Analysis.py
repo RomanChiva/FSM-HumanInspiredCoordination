@@ -221,13 +221,13 @@ def sensitivity_rectangle_spread(lower, upper, steps, n_runs):
     for value in param_values:
 
         sensing_radius = 30
-        spread = value
-        
-        inter_agent_dist = 15
-        ag_side = 4
+        spread = 2
+        n_ag = int(value)
+        iner_ag_dist = 6*np.pi
+        r = iner_ag_dist*n_ag/(2*np.pi)
+      
 
-        rectangle,n_ag = square_maker(inter_agent_dist*ag_side,inter_agent_dist*ag_side,4,4)
-
+        circle = circle_maker(n_ag,r)
         
 
         # Import Agent Parameters
@@ -235,7 +235,7 @@ def sensitivity_rectangle_spread(lower, upper, steps, n_runs):
       
 
         # DEFINE ENVIRONMENT: Env SIze, shape, N Agents, Nbrhd Radius, Spawn as Connected Graph
-        env = Env(100,rectangle,n_ag,sensing_radius,parameters,spread*sensing_radius)
+        env = Env(100,circle,n_ag,sensing_radius,parameters,spread*sensing_radius)
         #####################################################################
         
         times.append([env.run_sim() for x in range(n_runs)])
@@ -253,6 +253,68 @@ def sensitivity_rectangle_spread(lower, upper, steps, n_runs):
 
 
 
+
+
+
+
+
+
+def sensitivity_circle_spread_nag(min_ag, max_ag,min_sprd,max_sprd, steps_ag,steps_spr, n_runs):
+
+    ###################### GAME PARAMS ####################
+   
+    param_values_ag = np.linspace(min_ag,max_ag,steps_ag)
+    param_values_spr = np.linspace(min_sprd,max_sprd,steps_spr)
+    
+    print(param_values_ag)
+    print(param_values_spr)
+    
+    list_lists = []
+
+    for N_ag in param_values_ag:
+        times = []
+        n_ag = int(N_ag)
+        
+        for Spread in param_values_spr:
+
+            sensing_radius = 30
+            spread = Spread
+            iner_ag_dist = 6*np.pi
+            r = iner_ag_dist*n_ag/(2*np.pi)
+        
+            circle = circle_maker(n_ag,r)
+
+            # Import Agent Parameters
+            parameters = generate_agent_parameters(sensing_radius, spread)
+        
+
+            # DEFINE ENVIRONMENT: Env SIze, shape, N Agents, Nbrhd Radius, Spawn as Connected Graph
+            env = Env(100,circle,n_ag,sensing_radius,parameters,spread*sensing_radius)
+            #####################################################################
+            
+            times.append([env.run_sim() for x in range(n_runs)])
+
+            # Count how many times the simulation did not finish values above 9999 in times[-1]
+            count = 0
+            for time in times[-1]:
+                if time > 9999:
+                    count += 1
+            print('Count:',count)
+            if count > 50:
+                break
+
+
+            print('Sensitivity_RektSpred:',str(N_ag),str(Spread), ' Done ',times[-1])
+
+        list_lists.append(copy.deepcopy(times))
+
+    file_path = 'SA/SA_' + 'NAGSPRED' +'.pkl'
+    
+    with open(file_path, "wb") as file:
+        pickle.dump(([param_values_ag,param_values_spr],list_lists), file)
+
+
+sensitivity_circle_spread_nag(5,50,0.5,5,10,20,200)
 # sensitivity_plot('p_r_0',0.01,0.8,50,400)
 # sensitivity_plot('p_r_GU',0.005,0.4,40,400)
 # sensitivity_plot('p_a_0',0.01,0.5,40,400)
@@ -328,27 +390,27 @@ def lognormal_fit(param_values,times):
 
 
 
-param = 'p_a_s'
+# param = 'p_a_s'
 
-file_path = 'SA/SA_' + param +'.pkl'
+# file_path = 'SA/SA_' + param +'.pkl'
 
-with open(file_path, "rb") as file:
-    param_values,times = pickle.load(file)
+# with open(file_path, "rb") as file:
+#     param_values,times = pickle.load(file)
 
 
 
-# FIlter out 10000+ values
-cutoff = 9999
-times = [filt_above(time,cutoff) for time in times]
+# # FIlter out 10000+ values
+# cutoff = 9999
+# times = [filt_above(time,cutoff) for time in times]
 
-# Remove last two items of list
-trim_edges = 0
-param_values = param_values[:len(param_values)-trim_edges]
-times = [times[i] for i in range(len(times)-trim_edges)]
+# # Remove last two items of list
+# trim_edges = 0
+# param_values = param_values[:len(param_values)-trim_edges]
+# times = [times[i] for i in range(len(times)-trim_edges)]
 
-#make_histogram(t)
+# #make_histogram(t)
 
-lognormal_fit(param_values,times)
+# lognormal_fit(param_values,times)
 
 
 # Write a function to plot the mean and variance of the lognormal distribution as a function of the parameter   
